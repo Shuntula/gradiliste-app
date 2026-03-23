@@ -92,39 +92,42 @@ if not cookies.ready(): st.stop()
 st.sidebar.title("🔐 Admin")
 if st.sidebar.text_input("Lozinka:", type="password") == "admin":
     if st.sidebar.checkbox("Prikaži Admin Dashboard"):
-        st.header("📊 Admin Kontrola")
+        # Učitavamo podatke pre naslova da bismo izračunali R i G
+        df_l = ucitaj_podatke("log")
+        df_g_admin = ucitaj_podatke("gradilista")
+        
+        # Kalkulacija R (Aktivni radnici)
+        broj_r = 0
+        df_prisutni_admin = pd.DataFrame()
+        if not df_l.empty:
+            trenutno = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
+            df_prisutni_admin = trenutno[trenutno['Akcija'] == 'DOLAZAK']
+            broj_r = len(df_prisutni_admin)
+            
+        # Kalkulacija G (Aktivna gradilišta)
+        broj_g = len(df_g_admin) if not df_g_admin.empty else 0
+        
+        # DINAMIČKI NASLOV
+        st.header(f"📊 Admin Kontrola | R{broj_r} G{broj_g}")
+        
         tab_danas, tab_dnevnik, tab_radnici, tab_sati, tab_gradilista = st.tabs([
             "📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"
         ])
         
-        df_l = ucitaj_podatke("log")
-
         with tab_danas:
             st.subheader("Trenutno stanje na gradilištima")
             if not df_l.empty:
-                # Filtriranje za današnji datum
-                danasnji_datum = datetime.now().strftime("%d.%m.%Y")
-                df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
-                
-                # Logika za trenutno prisutne (poslednja akcija svakog radnika)
-                trenutno_prisutni = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
-                prisutni_mask = trenutno_prisutni['Akcija'] == 'DOLAZAK'
-                df_prisutni = trenutno_prisutni[prisutni_mask][['Radnik', 'Gradiliste', 'Vreme']]
-                
-                # Metrika (veliki broj na vrhu)
-                st.metric("Ukupno radnika na terenu", len(df_prisutni))
-                
-                if not df_prisutni.empty:
-                    st.write("Spisak ljudi koji su se prijavili, a nisu se još odjavili:")
-                    st.dataframe(df_prisutni, use_container_width=True)
+                st.metric("Ukupno radnika na terenu", broj_r)
+                if not df_prisutni_admin.empty:
+                    st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
                 else:
-                    st.info("Trenutno nema prijavljenih radnika na terenu.")
+                    st.info("Trenutno nema prijavljenih radnika.")
                 
                 st.divider()
-                st.write("Sve današnje aktivnosti (Dolasci i Odlasci):")
+                danasnji_datum = datetime.now().strftime("%d.%m.%Y")
+                df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
+                st.write("Sve današnje aktivnosti:")
                 st.dataframe(df_danas.iloc[::-1], use_container_width=True)
-            else:
-                st.info("Nema podataka u dnevniku.")
 
         with tab_dnevnik:
             st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
@@ -133,7 +136,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             novo = st.text_input("Naziv novog gradilišta:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
-            st.dataframe(ucitaj_podatke("gradilista"), use_container_width=True)
+            st.dataframe(df_g_admin, use_container_width=True)
             
         with tab_radnici:
             st.dataframe(ucitaj_podatke("korisnici"), use_container_width=True)
