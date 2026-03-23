@@ -8,7 +8,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # --- KONFIGURACIJA STRANICE ---
 st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide")
 
-# --- STILIZACIJA (Dizajn i Treptanje) ---
+# --- STILIZACIJA ---
 st.markdown("""
     <style>
     @keyframes blinking {
@@ -34,35 +34,34 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- POVEZIVANJE ---
-def povezi_tabelu():
+# --- POVEZIVANJE (Sa keširanjem klijenta) ---
+@st.cache_resource
+def povezi_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    try:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        return client.open("Baza Gradiliste")
-    except Exception as e:
-        st.error(f"Greška: {e}"); return None
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
 
-def ucitaj_podatke(sheet_name):
-    sh = povezi_tabelu()
-    if sh:
-        try: return pd.DataFrame(sh.worksheet(sheet_name).get_all_records())
-        except: return pd.DataFrame()
-    return pd.DataFrame()
+# --- UČITAVANJE PODATAKA (Sa keširanjem podataka na 10 sekundi) ---
+@st.cache_data(ttl=10)
+def ucitaj_sve_podatke():
+    client = povezi_google()
+    sh = client.open("Baza Gradiliste")
+    
+    # Učitavamo sve bitne tabele odjednom da smanjimo broj poziva API-ju
+    df_l = pd.DataFrame(sh.worksheet("log").get_all_records())
+    df_k = pd.DataFrame(sh.worksheet("korisnici").get_all_records())
+    df_g = pd.DataFrame(sh.worksheet("gradilista").get_all_records())
+    
+    return df_l, df_k, df_g
 
 def dodaj_u_tabelu(sheet_name, red):
-    sh = povezi_tabelu()
-    if sh: sh.worksheet(sheet_name).append_row(red)
+    client = povezi_google()
+    sh = client.open("Baza Gradiliste")
+    sh.worksheet(sheet_name).append_row(red)
+    st.cache_data.clear() # Brišemo keš da bi se odmah videla promena
 
-def dobij_poslednji_status(ime):
-    df_log = ucitaj_podatke("log")
-    if df_log.empty: return "ODLAZAK"
-    radnik_log = df_log[df_log['Radnik'] == ime]
-    if radnik_log.empty: return "ODLAZAK"
-    return radnik_log.iloc[-1]['Akcija']
-
+# --- POMOĆNE FUNKCIJE ---
 def format_u_hms(ukupno_sekundi):
     sati, ostalo = divmod(int(ukupno_sekundi), 3600)
     minuti, sekunde = divmod(ostalo, 60)
@@ -88,110 +87,100 @@ def obracunaj_sate(df):
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready(): st.stop()
 
+# --- GLAVNA LOGIKA ---
+# Učitavamo podatke na samom početku
+try:
+    df_l, df_k, df_g = ucitaj_sve_podatke()
+except Exception as e:
+    st.error(f"Greška pri učitavanju: {e}")
+    st.stop()
+
 # --- ADMIN OKRUŽENJE ---
 st.sidebar.title("🔐 Admin")
 if st.sidebar.text_input("Lozinka:", type="password") == "admin":
     if st.sidebar.checkbox("Prikaži Admin Dashboard"):
-        df_l = ucitaj_podatke("log")
         
-        # Kalkulacija R i G na osnovu AKTIVNIH prijava
-        broj_r = 0
-        broj_g_aktivno = 0
-        df_prisutni_admin = pd.DataFrame()
-        
+        # Kalkulacija status bar-a (R i G)
+        broj_r, broj_g_aktivno, df_prisutni_admin = 0, 0, pd.DataFrame()
         if not df_l.empty:
-            # Pronađi poslednju akciju svakog radnika
             trenutno = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
-            # Filtriraj samo one koji su prijavljeni (DOLAZAK)
             df_prisutni_admin = trenutno[trenutno['Akcija'] == 'DOLAZAK']
-            
             broj_r = len(df_prisutni_admin)
-            # Prebroj jedinstvena gradilišta među prijavljenim radnicima
             broj_g_aktivno = df_prisutni_admin['Gradiliste'].nunique()
         
-        # DINAMIČKI NASLOV (R - radnici, G - aktivna gradilišta)
         st.header(f"📊 Admin Kontrola | R{broj_r} G{broj_g_aktivno}")
         
-        tab_danas, tab_dnevnik, tab_radnici, tab_sati, tab_gradilista = st.tabs([
-            "📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"
-        ])
+        tabs = st.tabs(["📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"])
         
-        with tab_danas:
-            st.subheader("Trenutno stanje na gradilištima")
-            if not df_l.empty:
-                st.metric("Aktivnih radnika na terenu", broj_r)
-                if not df_prisutni_admin.empty:
-                    st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
-                else:
-                    st.info("Trenutno nema prijavljenih radnika.")
-                
-                st.divider()
-                danasnji_datum = datetime.now().strftime("%d.%m.%Y")
-                df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
-                st.write("Sve današnje aktivnosti:")
-                st.dataframe(df_danas.iloc[::-1], use_container_width=True)
+        with tabs[0]: # Danas
+            st.metric("Aktivnih radnika", broj_r)
+            if not df_prisutni_admin.empty:
+                st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
+            else: st.info("Nema prijavljenih.")
 
-        with tab_dnevnik:
-            st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
+        with tabs[1]: # Dnevnik
+            st.dataframe(df_l.iloc[::-1], use_container_width=True)
             
-        with tab_gradilista:
-            st.subheader("Baza svih gradilišta")
-            novo = st.text_input("Dodaj naziv novog gradilišta:")
+        with tabs[4]: # Gradilišta
+            novo = st.text_input("Novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
-            st.dataframe(ucitaj_podatke("gradilista"), use_container_width=True)
+            st.dataframe(df_g, use_container_width=True)
             
-        with tab_radnici:
-            st.dataframe(ucitaj_podatke("korisnici"), use_container_width=True)
+        with tabs[2]: # Radnici
+            st.dataframe(df_k, use_container_width=True)
             
-        with tab_sati:
-            if not df_l.empty:
-                res = obracunaj_sate(df_l)
-                if not res.empty:
-                    m = st.selectbox("Izaberi mesec:", res['Mesec'].unique())
-                    finalni = res[res['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
-                    finalni['Ukupno Vreme'] = finalni['Sekunde'].apply(format_u_hms)
-                    st.table(finalni[['Radnik', 'Ukupno Vreme']])
+        with tabs[3]: # Sati
+            res = obracunaj_sate(df_l)
+            if not res.empty:
+                m = st.selectbox("Mesec:", res['Mesec'].unique())
+                finalni = res[res['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
+                finalni['Ukupno Vreme'] = finalni['Sekunde'].apply(format_u_hms)
+                st.table(finalni[['Radnik', 'Ukupno Vreme']])
+        
+        if st.button("🔄 Osveži podatke ručno"):
+            st.cache_data.clear()
+            st.rerun()
         st.stop()
 
 # --- RADNIČKO OKRUŽENJE ---
 st.title("👷 Digitalna Prijava")
 email_cookie = cookies.get("radnik_email")
-df_korisnici = ucitaj_podatke("korisnici")
 prijavljeno_ime = None
 
-if email_cookie and not df_korisnici.empty:
-    match = df_korisnici[df_korisnici['Email'] == email_cookie]
+if email_cookie and not df_k.empty:
+    match = df_k[df_k['Email'] == email_cookie]
     if not match.empty: prijavljeno_ime = match.iloc[0]['Ime']
 
 if not prijavljeno_ime:
     st.subheader("Registracija / Prijava")
-    email_in = st.text_input("Unesite vaš Email:").strip().lower()
+    email_in = st.text_input("Email:").strip().lower()
     if email_in:
-        postoji = False
-        if not df_korisnici.empty and 'Email' in df_korisnici.columns:
-            match = df_korisnici[df_korisnici['Email'] == email_in]
-            if not match.empty:
-                postoji = True
-                if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"):
-                    cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
-        if not postoji:
+        match = df_k[df_k['Email'] == email_in] if not df_k.empty else pd.DataFrame()
+        if not match.empty:
+            if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"):
+                cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
+        else:
             ime_in = st.text_input("Ime i Prezime:")
             if st.button("Registruj me"):
                 if ime_in and email_in:
                     dodaj_u_tabelu("korisnici", [ime_in, email_in])
                     cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
 else:
-    status = dobij_poslednji_status(prijavljeno_ime)
+    # Provera statusa radnika iz već učitanog df_l
+    status = "ODLAZAK"
+    if not df_l.empty:
+        radnik_log = df_l[df_l['Radnik'] == prijavljeno_ime]
+        if not radnik_log.empty: status = radnik_log.iloc[-1]['Akcija']
+
     st.write(f"### Radnik: **{prijavljeno_ime}**")
     
-    df_g = ucitaj_podatke("gradilista")
     if not df_g.empty:
         lista_g = ["-- KLIKNI OVDE I IZABERI GRADILIŠTE --"] + df_g['Naziv'].tolist()
         izbor = st.selectbox("🚩 GDE SE NALAZITE TRENUTNO?", lista_g)
         
         if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
-            st.info("Obavezno izaberite lokaciju iznad kako bi se pojavilo dugme za prijavu.")
+            st.info("Izaberite lokaciju da se pojavi dugme.")
 
         st.write("---")
         vreme_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -199,9 +188,7 @@ else:
         
         with col1:
             if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
-                st.markdown('<div class="onemoguceno-dugme">', unsafe_allow_html=True)
-                st.button("IZBOR GRADILIŠTA OBAVEZAN", key="no_site")
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
             elif status == "ODLAZAK":
                 st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
                 if st.button("✅ PRIJAVI SE NA POSAO"):
@@ -209,9 +196,7 @@ else:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="onemoguceno-dugme">', unsafe_allow_html=True)
-                st.button("VEĆ STE PRIJAVLJENI", key="dis_pri")
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="onemoguceno-dugme"><button>VEĆ STE PRIJAVLJENI</button></div>', unsafe_allow_html=True)
 
         with col2:
             if status == "DOLAZAK":
@@ -221,12 +206,10 @@ else:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="onemoguceno-dugme">', unsafe_allow_html=True)
-                st.button("NISTE PRIJAVLJENI", key="dis_odj")
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="onemoguceno-dugme"><button>NISTE PRIJAVLJENI</button></div>', unsafe_allow_html=True)
     else:
-        st.warning("Admin još nije dodao gradilišta.")
+        st.warning("Admin nije dodao gradilišta.")
 
     st.write("---")
-    if st.button("Logout sa uređaja"):
+    if st.button("Logout"):
         del cookies["radnik_email"]; cookies.save(); st.rerun()
