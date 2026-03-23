@@ -167,4 +167,60 @@ if not prijavljeno_ime:
             ime_in = st.text_input("Ime i Prezime:")
             if st.button("Registruj me"):
                 if ime_in and email_in:
-                    dodaj_u_tabelu(
+                    dodaj_u_tabelu("korisnici", [ime_in, email_in])
+                    cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
+else:
+    status = "ODLAZAK"
+    poslednje_gradiliste = None
+    if not df_l.empty:
+        radnik_logs = df_l[df_l['Radnik'] == prijavljeno_ime]
+        if not radnik_logs.empty:
+            poslednji_red = radnik_logs.iloc[-1]
+            status = poslednji_red['Akcija']
+            poslednje_gradiliste = poslednji_red['Gradiliste']
+
+    # Prikaz radnika: "radnik:" (sivo) i "Ime i Prezime" (belo)
+    st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{prijavljeno_ime}</span>", unsafe_allow_html=True)
+    
+    if not df_g.empty:
+        lista_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
+        default_index = 0
+        if poslednje_gradiliste in lista_g:
+            default_index = lista_g.index(poslednje_gradiliste)
+            
+        izbor = st.selectbox("🚩 gde se nalazite trenutno?", lista_g, index=default_index)
+        
+        if izbor == "-- klikni ovde i izaberi gradilište --":
+            st.info("izaberite lokaciju da se pojavi dugme.")
+
+        st.write("---")
+        vreme_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if izbor == "-- klikni ovde i izaberi gradilište --":
+                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
+            elif status == "ODLAZAK":
+                st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
+                if st.button("✅ PRIJAVI SE NA POSAO"):
+                    dodaj_u_tabelu("log", [prijavljeno_ime, "DOLAZAK", izbor, vreme_sad])
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="blago-trepcuce-zeleno">', unsafe_allow_html=True)
+                st.button("✅ PRIJAVLJENI STE", key="dis_pri")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        with col2:
+            if status == "DOLAZAK":
+                st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
+                if st.button("🛑 ODJAVI SE SA POSLA"):
+                    dodaj_u_tabelu("log", [prijavljeno_ime, "ODLAZAK", izbor, vreme_sad])
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="onemoguceno-dugme"><button>NISTE PRIJAVLJENI</button></div>', unsafe_allow_html=True)
+
+    st.write("---")
+    if st.button("Logout"):
+        del cookies["radnik_email"]; cookies.save(); st.rerun()
