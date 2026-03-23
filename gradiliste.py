@@ -88,31 +88,67 @@ def obracunaj_sate(df):
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready(): st.stop()
 
-# --- ADMIN ---
+# --- ADMIN OKRUŽENJE ---
 st.sidebar.title("🔐 Admin")
 if st.sidebar.text_input("Lozinka:", type="password") == "admin":
     if st.sidebar.checkbox("Prikaži Admin Dashboard"):
         st.header("📊 Admin Kontrola")
-        t1, t2, t3, t4 = st.tabs(["🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"])
+        tab_danas, tab_dnevnik, tab_radnici, tab_sati, tab_gradilista = st.tabs([
+            "📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"
+        ])
+        
         df_l = ucitaj_podatke("log")
-        with t1: st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
-        with t4:
-            novo = st.text_input("Novo gradilište:")
+
+        with tab_danas:
+            st.subheader("Trenutno stanje na gradilištima")
+            if not df_l.empty:
+                # Filtriranje za današnji datum
+                danasnji_datum = datetime.now().strftime("%d.%m.%Y")
+                df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
+                
+                # Logika za trenutno prisutne (poslednja akcija svakog radnika)
+                trenutno_prisutni = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
+                prisutni_mask = trenutno_prisutni['Akcija'] == 'DOLAZAK'
+                df_prisutni = trenutno_prisutni[prisutni_mask][['Radnik', 'Gradiliste', 'Vreme']]
+                
+                # Metrika (veliki broj na vrhu)
+                st.metric("Ukupno radnika na terenu", len(df_prisutni))
+                
+                if not df_prisutni.empty:
+                    st.write("Spisak ljudi koji su se prijavili, a nisu se još odjavili:")
+                    st.dataframe(df_prisutni, use_container_width=True)
+                else:
+                    st.info("Trenutno nema prijavljenih radnika na terenu.")
+                
+                st.divider()
+                st.write("Sve današnje aktivnosti (Dolasci i Odlasci):")
+                st.dataframe(df_danas.iloc[::-1], use_container_width=True)
+            else:
+                st.info("Nema podataka u dnevniku.")
+
+        with tab_dnevnik:
+            st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
+            
+        with tab_gradilista:
+            novo = st.text_input("Naziv novog gradilišta:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
             st.dataframe(ucitaj_podatke("gradilista"), use_container_width=True)
-        with t2: st.dataframe(ucitaj_podatke("korisnici"), use_container_width=True)
-        with t3:
+            
+        with tab_radnici:
+            st.dataframe(ucitaj_podatke("korisnici"), use_container_width=True)
+            
+        with tab_sati:
             if not df_l.empty:
                 res = obracunaj_sate(df_l)
                 if not res.empty:
-                    m = st.selectbox("Mesec:", res['Mesec'].unique())
+                    m = st.selectbox("Izaberi mesec:", res['Mesec'].unique())
                     finalni = res[res['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
-                    finalni['Vreme'] = finalni['Sekunde'].apply(format_u_hms)
-                    st.table(finalni[['Radnik', 'Vreme']])
+                    finalni['Ukupno Vreme'] = finalni['Sekunde'].apply(format_u_hms)
+                    st.table(finalni[['Radnik', 'Ukupno Vreme']])
         st.stop()
 
-# --- RADNICI ---
+# --- RADNIČKO OKRUŽENJE ---
 st.title("👷 Digitalna Prijava")
 email_cookie = cookies.get("radnik_email")
 df_korisnici = ucitaj_podatke("korisnici")
@@ -127,7 +163,7 @@ if not prijavljeno_ime:
     email_in = st.text_input("Unesite vaš Email:").strip().lower()
     if email_in:
         postoji = False
-        if not df_korisnici.empty:
+        if not df_korisnici.empty and 'Email' in df_korisnici.columns:
             match = df_korisnici[df_korisnici['Email'] == email_in]
             if not match.empty:
                 postoji = True
@@ -145,11 +181,9 @@ else:
     
     df_g = ucitaj_podatke("gradilista")
     if not df_g.empty:
-        # Padajući meni za gradilište
         lista_g = ["-- KLIKNI OVDE I IZABERI GRADILIŠTE --"] + df_g['Naziv'].tolist()
         izbor = st.selectbox("🚩 GDE SE NALAZITE TRENUTNO?", lista_g)
         
-        # Ako nije izabrano gradilište, pokaži plavo obaveštenje (umesto belog kvadrata)
         if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
             st.info("Obavezno izaberite lokaciju iznad kako bi se pojavilo dugme za prijavu.")
 
@@ -188,5 +222,5 @@ else:
         st.warning("Admin još nije dodao gradilišta.")
 
     st.write("---")
-    if st.button("Odjavi me sa ovog uređaja (Logout)"):
+    if st.button("Logout sa uređaja"):
         del cookies["radnik_email"]; cookies.save(); st.rerun()
