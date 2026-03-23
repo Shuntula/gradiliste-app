@@ -7,11 +7,15 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 # --- POVEZIVANJE SA GOOGLE SHEETS ---
 def povezi_tabelu():
-    # Ovde će ići putanja do vašeg tajnog ključa koji dobijete od Google-a
+    # Ovde definišemo dozvole za Google Drive i Sheets
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    
+    # IZMENA: Čitamo iz Secrets (koji smo podesili u Advanced Settings)
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
     client = gspread.authorize(creds)
-    # Zamenite sa tačnim nazivom vaše Google tabele
+    # Proveri da li se tvoja tabela na Google-u zove baš ovako:
     return client.open("Baza Gradiliste")
 
 # --- KONFIGURACIJA ---
