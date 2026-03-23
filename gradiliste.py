@@ -49,6 +49,10 @@ st.markdown("""
         background-color: #dc3545 !important; color: white !important;
         border-radius: 15px !important; width: 100% !important;
     }
+
+    /* Stil za natpis radnika */
+    .label-radnik { font-size: 16px; color: #555; }
+    .ime-radnika { font-size: 28px; font-weight: bold; color: #000; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -175,8 +179,8 @@ else:
             status = poslednji_red['Akcija']
             poslednje_gradiliste = poslednji_red['Gradiliste']
 
-    # Smanjen natpis radnika
-    st.write(f"radnik: **{prijavljeno_ime}**")
+    # IZMENA: Kombinovani font za natpis radnika
+    st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{prijavljeno_ime}</span>", unsafe_allow_html=True)
     
     if not df_g.empty:
         lista_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
@@ -184,7 +188,6 @@ else:
         if poslednje_gradiliste in lista_g:
             default_index = lista_g.index(poslednje_gradiliste)
             
-        # Pitanje malim slovima
         izbor = st.selectbox("🚩 gde se nalazite trenutno?", lista_g, index=default_index)
         
         if izbor == "-- klikni ovde i izaberi gradilište --":
