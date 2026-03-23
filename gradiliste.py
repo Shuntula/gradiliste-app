@@ -11,14 +11,14 @@ st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide"
 # --- STILIZACIJA ---
 st.markdown("""
     <style>
-    /* Brzo treptanje za dugme PRIJAVI SE (poziv na akciju) */
+    /* Brzo treptanje za dugme PRIJAVI SE */
     @keyframes blinking {
         0% { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
         50% { background-color: #58d68d; box-shadow: 0 0 20px #58d68d; }
         100% { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
     }
     
-    /* Blago pulsiranje za status PRIJAVLJENI STE (potvrda statusa) */
+    /* Blago pulsiranje za status PRIJAVLJENI STE */
     @keyframes subtle-green {
         0% { background-color: #1e7e34; opacity: 1; }
         50% { background-color: #28a745; opacity: 0.8; }
@@ -128,7 +128,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             else: st.info("Nema prijavljenih.")
         with tabs[1]: st.dataframe(df_l.iloc[::-1], use_container_width=True)
         with tabs[4]:
-            novo = st.text_input("Novo gradilište:")
+            novo = st.text_input("Dodaj novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
             st.dataframe(df_g, use_container_width=True)
@@ -153,7 +153,7 @@ if email_cookie and not df_k.empty:
 
 if not prijavljeno_ime:
     st.subheader("Registracija / Prijava")
-    email_in = st.text_input("Email:").strip().lower()
+    email_in = st.text_input("Unesite vaš Email:").strip().lower()
     if email_in:
         match = df_k[df_k['Email'] == email_in] if not df_k.empty else pd.DataFrame()
         if not match.empty:
@@ -175,25 +175,27 @@ else:
             status = poslednji_red['Akcija']
             poslednje_gradiliste = poslednji_red['Gradiliste']
 
-    st.write(f"### Radnik: **{prijavljeno_ime}**")
+    # Smanjen natpis radnika
+    st.write(f"radnik: **{prijavljeno_ime}**")
     
     if not df_g.empty:
-        lista_g = ["-- KLIKNI OVDE I IZABERI GRADILIŠTE --"] + df_g['Naziv'].tolist()
+        lista_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
         default_index = 0
         if poslednje_gradiliste in lista_g:
             default_index = lista_g.index(poslednje_gradiliste)
             
-        izbor = st.selectbox("🚩 GDE SE NALAZITE TRENUTNO?", lista_g, index=default_index)
+        # Pitanje malim slovima
+        izbor = st.selectbox("🚩 gde se nalazite trenutno?", lista_g, index=default_index)
         
-        if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
-            st.info("Izaberite lokaciju da se pojavi dugme.")
+        if izbor == "-- klikni ovde i izaberi gradilište --":
+            st.info("izaberite lokaciju da se pojavi dugme.")
 
         st.write("---")
         vreme_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         col1, col2 = st.columns(2)
         
         with col1:
-            if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
+            if izbor == "-- klikni ovde i izaberi gradilište --":
                 st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
             elif status == "ODLAZAK":
                 st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
@@ -202,7 +204,6 @@ else:
                     st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                # NOVO: Blago zeleno treperenje za potvrdu da je radnik već prijavljen
                 st.markdown('<div class="blago-trepcuce-zeleno">', unsafe_allow_html=True)
                 st.button("✅ PRIJAVLJENI STE", key="dis_pri")
                 st.markdown('</div>', unsafe_allow_html=True)
