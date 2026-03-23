@@ -72,6 +72,34 @@ def format_u_hms(ukupno_sekundi):
     minuti, sekunde = divmod(ostalo, 60)
     return f"{sati:02d}:{minuti:02d}:{sekunde:02d}"
 
+# --- FUNKCIJA ZA LOGIKU OBRAČUNA ---
+def obracunaj_sate(df):
+    if df.empty or 'Vreme' not in df.columns:
+        return pd.DataFrame()
+    
+    # Konverzija vremena u Python objekte
+    df['Vreme_DT'] = pd.to_datetime(df['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
+    df = df.dropna(subset=['Vreme_DT'])
+    df = df.sort_values(['Radnik', 'Vreme_DT'])
+    
+    obracun = []
+    for radnik in df['Radnik'].unique():
+        radnik_data = df[df['Radnik'] == radnik]
+        dolazak_vreme = None
+        
+        for _, row in radnik_data.iterrows():
+            if row['Akcija'] == "DOLAZAK":
+                dolazak_vreme = row['Vreme_DT']
+            elif row['Akcija'] == "ODLAZAK" and dolazak_vreme is not None:
+                razlika_sekundi = (row['Vreme_DT'] - dolazak_vreme).total_seconds()
+                # Ako je razlika negativna (greška u unosu), preskoči
+                if razlika_sekundi > 0:
+                    mesec = dolazak_vreme.strftime("%m-%Y")
+                    obracun.append([radnik, mesec, razlika_sekundi])
+                dolazak_vreme = None
+                
+    return pd.DataFrame(obracun, columns=["Radnik", "Mesec", "Sekunde"])
+
 # --- KOLAČIĆI ---
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready(): st.stop()
@@ -112,11 +140,31 @@ if prikazi_dashboard:
         st.dataframe(ucitaj_podatke("korisnici"), use_container_width=True)
         
     with t3:
-        if not df_l.empty and 'Vreme' in df_l.columns:
-            # Mala prepravka za obračun sati
-            df_l['Vreme_DT'] = pd.to_datetime(df_l['Vreme'], format="%d.%m.%Y %H:%M:%S")
-            # Ovde bi išla logika za obračun kao u prethodnim verzijama
-            st.info("Ovde su podaci za obračun sati po radnicima.")
+        st.subheader("Obračun radnog vremena")
+        if not df_l.empty:
+            res = obracunaj_sate(df_l)
+            if not res.empty:
+                # Filter po mesecu
+                svi_meseci = res['Mesec'].unique()
+                izabrani_mesec = st.selectbox("Izaberi mesec za obračun:", svi_meseci)
+                
+                # Grupisanje i sumiranje sekundi za izabrani mesec
+                mesecni_df = res[res['Mesec'] == izabrani_mesec]
+                finalni = mesecni_df.groupby('Radnik')['Sekunde'].sum().reset_index()
+                
+                # Pretvaranje sekundi u format SS:MM:ss
+                finalni['Ukupno Vreme'] = finalni['Sekunde'].apply(format_u_hms)
+                
+                # Prikaz tabele
+                st.table(finalni[['Radnik', 'Ukupno Vreme']])
+                
+                # Opcija za preuzimanje
+                csv = finalni[['Radnik', 'Ukupno Vreme']].to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Preuzmi ovaj obračun", csv, f"obracun_{izabrani_mesec}.csv", "text/csv")
+            else:
+                st.warning("Nema dovoljno podataka (parova Prijava-Odjava) za obračun.")
+        else:
+            st.info("Dnevnik je prazan, nema podataka za obračun.")
 
 else:
     # ------------------ RADNIČKO OKRUŽENJE ------------------
@@ -136,7 +184,7 @@ else:
         email_in = st.text_input("Email:").strip().lower()
         if email_in:
             postoji = False
-            if not df_korisnici.empty:
+            if not df_korisnici.empty and 'Email' in df_korisnici.columns:
                 match = df_korisnici[df_korisnici['Email'] == email_in]
                 if not match.empty:
                     postoji = True
