@@ -31,14 +31,6 @@ st.markdown("""
         background-color: #dc3545 !important; color: white !important;
         border-radius: 15px !important; width: 100% !important;
     }
-    /* Stil za isticanje izbora gradilišta */
-    .okvir-gradiliste {
-        padding: 20px;
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        border-left: 5px solid #007bff;
-        margin-bottom: 20px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -118,7 +110,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     finalni = res[res['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
                     finalni['Vreme'] = finalni['Sekunde'].apply(format_u_hms)
                     st.table(finalni[['Radnik', 'Vreme']])
-        st.stop() # Zaustavlja iscrtavanje radničkog dela ako je admin dashboard otvoren
+        st.stop()
 
 # --- RADNICI ---
 st.title("👷 Digitalna Prijava")
@@ -131,6 +123,7 @@ if email_cookie and not df_korisnici.empty:
     if not match.empty: prijavljeno_ime = match.iloc[0]['Ime']
 
 if not prijavljeno_ime:
+    st.subheader("Registracija / Prijava")
     email_in = st.text_input("Unesite vaš Email:").strip().lower()
     if email_in:
         postoji = False
@@ -152,21 +145,22 @@ else:
     
     df_g = ucitaj_podatke("gradilista")
     if not df_g.empty:
-        # DODAJEMO "PRAZNU" OPCIJU NA VRH LISTE
+        # Padajući meni za gradilište
         lista_g = ["-- KLIKNI OVDE I IZABERI GRADILIŠTE --"] + df_g['Naziv'].tolist()
-        
-        st.markdown('<div class="okvir-gradiliste">', unsafe_allow_html=True)
         izbor = st.selectbox("🚩 GDE SE NALAZITE TRENUTNO?", lista_g)
-        st.markdown('</div>', unsafe_allow_html=True)
         
+        # Ako nije izabrano gradilište, pokaži plavo obaveštenje (umesto belog kvadrata)
+        if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
+            st.info("Obavezno izaberite lokaciju iznad kako bi se pojavilo dugme za prijavu.")
+
+        st.write("---")
         vreme_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         col1, col2 = st.columns(2)
         
         with col1:
-            # Dugme radi samo ako je gradilište izabrano
             if izbor == "-- KLIKNI OVDE I IZABERI GRADILIŠTE --":
                 st.markdown('<div class="onemoguceno-dugme">', unsafe_allow_html=True)
-                st.button("IZABERITE GRADILIŠTE DA BI SE PRIJAVILI", key="no_site")
+                st.button("IZBOR GRADILIŠTA OBAVEZAN", key="no_site")
                 st.markdown('</div>', unsafe_allow_html=True)
             elif status == "ODLAZAK":
                 st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
@@ -194,5 +188,5 @@ else:
         st.warning("Admin još nije dodao gradilišta.")
 
     st.write("---")
-    if st.button("Logout sa uređaja"):
+    if st.button("Odjavi me sa ovog uređaja (Logout)"):
         del cookies["radnik_email"]; cookies.save(); st.rerun()
