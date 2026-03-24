@@ -146,12 +146,20 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
         
         with tabs[0]: # DANAS
             st.metric("Aktivnih radnika", broj_r)
+            
+            # NOVO: Naslov iznad tabela
+            st.subheader("Pregled aktivnosti za danas")
+            
             if not df_prisutni_admin.empty:
+                st.write("Trenutno prijavljeni radnici:")
                 st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
-            else: st.info("Nema prijavljenih.")
+            else: 
+                st.info("Nema trenutno prijavljenih radnika.")
+            
             st.divider()
             danas_str = datetime.now().strftime("%d.%m.%Y")
             df_danas = df_l[df_l['Vreme'].str.contains(danas_str)].copy()
+            st.write("Sve današnje aktivnosti (Dolasci/Odlasci):")
             st.dataframe(df_danas.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
 
         with tabs[1]: # DNEVNIK
@@ -163,27 +171,20 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             if not st.session_state.uredjivanje_cene:
                 st.subheader("Lista radnika i dnevnice")
                 if not df_k.empty:
-                    # SAKRIVANJE EMAIL KOLONE
                     prikaz_radnika = df_k.copy()
-                    if 'Email' in prikaz_radnika.columns:
-                        prikaz_radnika = prikaz_radnika.drop(columns=['Email'])
-                    if 'Cena' in prikaz_radnika.columns:
-                        prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
-                    
+                    if 'Email' in prikaz_radnika.columns: prikaz_radnika = prikaz_radnika.drop(columns=['Email'])
+                    if 'Cena' in prikaz_radnika.columns: prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
                     st.dataframe(prikaz_radnika, use_container_width=True)
                     
                     danas_str = datetime.now().strftime("%d.%m.%Y")
                     mesec_str = datetime.now().strftime("%m-%Y")
-                    
                     radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_str))]['Radnik'].unique()
                     trosak_danas = 0
                     trosak_mesec = 0
                     
                     if 'Cena' in df_k.columns and not df_l.empty:
                         cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
-                        for r in radnici_danas:
-                            trosak_danas += float(cene_dict.get(r, 0))
-                        
+                        for r in radnici_danas: trosak_danas += float(cene_dict.get(r, 0))
                         _, df_dani_stat = obracunaj_sate_i_dane(df_l)
                         if not df_dani_stat.empty:
                             tekuci_mesec_dani = df_dani_stat[df_dani_stat['Mesec'] == mesec_str]
@@ -197,8 +198,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     if st.button("📝 Uredi cenu dnevnice"):
                         st.session_state.uredjivanje_cene = True
                         st.rerun()
-                else:
-                    st.info("Nema registrovanih radnika.")
+                else: st.info("Nema registrovanih radnika.")
             else:
                 st.subheader("⚙️ Podešavanje dnevnice")
                 if st.button("⬅️ Nazad"):
@@ -206,8 +206,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     st.rerun()
                 st.divider()
                 col_r, col_c = st.columns(2)
-                with col_r:
-                    izabrani_r = st.selectbox("Izaberi radnika:", df_k['Ime'].tolist())
+                with col_r: izabrani_r = st.selectbox("Izaberi radnika:", df_k['Ime'].tolist())
                 with col_c:
                     trenutna_c = 0
                     if 'Cena' in df_k.columns:
@@ -216,8 +215,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     nova_c = st.number_input("Nova cena [dan]:", value=trenutna_c, step=100)
                 if st.button("✅ Sačuvaj"):
                     azuriraj_cenu_radnika(izabrani_r, nova_c)
-                    st.success("Sačuvano!")
-                    st.rerun()
+                    st.success("Sačuvano!"); st.rerun()
 
         with tabs[4]: # GRADILIŠTA
             novo = st.text_input("Dodaj novo gradilište:")
