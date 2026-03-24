@@ -14,7 +14,7 @@ if 'uredjivanje_cene' not in st.session_state:
 if 'unos_troska' not in st.session_state:
     st.session_state.unos_troska = False
 
-# --- STILIZACIJA (Pulsiranje, Dugmići i Centriranje) ---
+# --- STILIZACIJA ---
 st.markdown("""
     <style>
     @keyframes pulse-green {
@@ -51,25 +51,13 @@ st.markdown("""
     }
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
-    
-    /* CENTRIRAN NASLOV ADMINA SA RAZMAKOM NA DOLE */
-    .admin-naslov { 
-        font-size: 22px; 
-        font-weight: bold; 
-        text-align: center; 
-        width: 100%;
-        margin-top: 10px;
-        margin-bottom: 50px; /* Ovo gura kartice na dole */
-        padding: 10px;
-        border-bottom: 1px solid #333;
-    }
-
+    .admin-naslov { font-size: 22px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 50px; padding: 10px; border-bottom: 1px solid #333; }
     .trosak-box { font-size: 22px; font-weight: bold; color: #FF4B4B; padding: 5px 10px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
     .trosak-mesec-box { font-size: 22px; font-weight: bold; color: #FFA500; padding: 5px 10px; border: 2px solid #FFA500; border-radius: 10px; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- POVEZIVANJE SA GOOGLE ---
+# --- POVEZIVANJE ---
 @st.cache_resource
 def povezi_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -157,9 +145,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             df_prisutni_admin = trenutno[trenutno['Akcija'] == 'DOLAZAK']
             broj_r, broj_g_aktivno = len(df_prisutni_admin), df_prisutni_admin['Gradiliste'].nunique()
         
-        # CENTRIRAN NASLOV SA RAZMAKOM
         st.markdown(f"<div class='admin-naslov'>📊 Admin Kontrola | R{broj_r} G{broj_g_aktivno}</div>", unsafe_allow_html=True)
-        
         tabs = st.tabs(["📅 Danas", "🕒 Dnevnik", "👥 Radnici", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
         with tabs[0]: # DANAS
@@ -179,13 +165,36 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 df_l_prikaz = df_l.iloc[::-1].reset_index().rename(columns={'index': 'Br.'})
                 st.dataframe(df_l_prikaz.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
 
-        with tabs[2]: # RADNICI
+        with tabs[2]: # RADNICI (PONOVO DODATA LOGIKA ZA TROŠKOVE)
             if not st.session_state.uredjivanje_cene:
                 st.subheader("Lista radnika")
                 if not df_k.empty:
                     p_radnika = df_k.copy()
                     if 'Email' in p_radnika.columns: p_radnika = p_radnika.drop(columns=['Email'])
+                    if 'Cena' in p_radnika.columns: p_radnika = p_radnika.rename(columns={'Cena': 'cena [dan]'})
                     st.dataframe(p_radnika, use_container_width=True)
+                    
+                    # --- PRORAČUN DNEVNIH I MESEČNIH TROŠKOVA RADNIKA ---
+                    danas_dt = datetime.now().strftime("%d.%m.%Y")
+                    mesec_dt = datetime.now().strftime("%m-%Y")
+                    
+                    radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique()
+                    t_danas, t_mesec = 0, 0
+                    
+                    if 'Cena' in df_k.columns:
+                        cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
+                        for r in radnici_danas: t_danas += float(cene_dict.get(r, 0))
+                        
+                        _, df_stat_dani = obracunaj_sate_i_dane(df_l)
+                        if not df_stat_dani.empty:
+                            tekuci_mesec_dani = df_stat_dani[df_stat_dani['Mesec'] == mesec_dt]
+                            for _, row in tekuci_mesec_dani.iterrows():
+                                radna_cena = float(cene_dict.get(row['Radnik'], 0))
+                                t_mesec += row['Radni Dani'] * radna_cena
+
+                    st.markdown(f"<p style='font-size:18px;'>Troškovi za danas: <span class='trosak-box'>{t_danas:,.0f} RSD</span></p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='font-size:18px;'>Troškovi u tekućem mesecu: <span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p>", unsafe_allow_html=True)
+                    
                     st.button("📝 Uredi cenu dnevnice", on_click=lambda: setattr(st.session_state, 'uredjivanje_cene', True))
             else:
                 if st.button("⬅️ Nazad"): st.session_state.uredjivanje_cene = False; st.rerun()
@@ -205,13 +214,21 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             novo = st.text_input("Novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
-            st.dataframe(df_g, use_container_width=True)
+            if not df_g.empty:
+                temp_l = df_l.copy() if not df_l.empty else pd.DataFrame(columns=['Vreme', 'Akcija', 'Radnik', 'Gradiliste'])
+                if not temp_l.empty:
+                    temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10)
+                    dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
+                    stat_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
+                    p_g = pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left')
+                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astype(int)
+                    st.dataframe(p_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
 
-        with tabs[5]: # TROŠKOVI
-            st.subheader("Svi troškovi")
+        with tabs[5]: # TROŠKOVI (DODATNI)
+            st.subheader("Svi dodatni troškovi")
             if not df_t.empty:
                 st.dataframe(df_t.iloc[::-1], use_container_width=True)
-                st.metric("Ukupno", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
+                st.metric("Ukupno dodatni troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
         st.stop()
 
 # --- RADNIČKO OKRUŽENJE ---
@@ -258,7 +275,7 @@ else:
         st.write("---")
         if status == "ODLAZAK":
             if izbor == "-- klikni ovde i izaberi gradilište --":
-                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR GRADILIŠTA OBAVEZAN</button></div>', unsafe_allow_html=True)
+                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
                 if st.button("✅ PRIJAVI SE NA POSAO"):
