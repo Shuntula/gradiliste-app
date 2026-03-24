@@ -8,7 +8,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # --- KONFIGURACIJA STRANICE ---
 st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide")
 
-# --- STILIZACIJA (Dugmići i Animanicije) ---
+# --- STILIZACIJA ---
 st.markdown("""
     <style>
     @keyframes blinking {
@@ -44,8 +44,6 @@ st.markdown("""
     }
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
-    
-    /* Stil za smanjeni Admin Naslov */
     .admin-naslov { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
     </style>
     """, unsafe_allow_html=True)
@@ -73,7 +71,23 @@ def dodaj_u_tabelu(sheet_name, red):
     sh.worksheet(sheet_name).append_row(red)
     st.cache_data.clear()
 
-# --- FUNKCIJA ZA BOJENJE DNEVNIKA ---
+def azuriraj_cenu_radnika(ime, nova_cena):
+    client = povezi_google()
+    sh = client.open("Baza Gradiliste")
+    ws = sh.worksheet("korisnici")
+    # Pronalazimo red u kom je radnik
+    cell = ws.find(ime)
+    if cell:
+        # Ažuriramo 3. kolonu (Cena) u tom redu
+        ws.update_cell(cell.row, 3, nova_cena)
+        st.cache_data.clear()
+
+# --- POMOĆNE FUNKCIJE ---
+def format_u_hms(ukupno_sekundi):
+    sati, ostalo = divmod(int(ukupno_sekundi), 3600)
+    minuti, sekunde = divmod(ostalo, 60)
+    return f"{sati:02d}:{minuti:02d}:{sekunde:02d}"
+
 def oboji_dnevnik(row):
     danas = datetime.now().strftime("%d.%m.%Y")
     boja = ''
@@ -81,12 +95,6 @@ def oboji_dnevnik(row):
         if row['Akcija'] == 'DOLAZAK': boja = 'background-color: #c3e6cb; color: #155724'
         elif row['Akcija'] == 'ODLAZAK': boja = 'background-color: #f5c6cb; color: #721c24'
     return [boja] * len(row)
-
-# --- POMOĆNE FUNKCIJE ---
-def format_u_hms(ukupno_sekundi):
-    sati, ostalo = divmod(int(ukupno_sekundi), 3600)
-    minuti, sekunde = divmod(ostalo, 60)
-    return f"{sati:02d}:{minuti:02d}:{sekunde:02d}"
 
 def obracunaj_sate_i_dane(df):
     if df.empty or 'Vreme' not in df.columns: return pd.DataFrame(), pd.DataFrame()
@@ -129,9 +137,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             broj_r = len(df_prisutni_admin)
             broj_g_aktivno = df_prisutni_admin['Gradiliste'].nunique()
         
-        # IZMENA: Smanjen naslov sa R i G podacima
         st.markdown(f"<div class='admin-naslov'>📊 Admin Kontrola | R{broj_r} G{broj_g_aktivno}</div>", unsafe_allow_html=True)
-        
         tabs = st.tabs(["📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"])
         
         with tabs[0]: # DANAS
@@ -142,7 +148,6 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             st.divider()
             danasnji_datum = datetime.now().strftime("%d.%m.%Y")
             df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
-            st.write("Sve današnje aktivnosti:")
             st.dataframe(df_danas.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
 
         with tabs[1]: # DNEVNIK
@@ -150,6 +155,34 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 st.dataframe(df_l.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
             else: st.info("Dnevnik je prazan.")
         
+        with tabs[2]: # RADNICI (SA UNOSOM CENE)
+            st.subheader("Lista radnika i dnevnice")
+            # Prikaz tabele sa preimenovanom kolonom radi lepšeg izgleda
+            if not df_k.empty:
+                prikaz_radnika = df_k.copy()
+                if 'Cena' in prikaz_radnika.columns:
+                    prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
+                st.dataframe(prikaz_radnika, use_container_width=True)
+                
+                st.divider()
+                st.subheader("Uredi cenu dnevnice")
+                col_r, col_c = st.columns(2)
+                with col_r:
+                    izabrani_r = st.selectbox("Izaberi radnika:", df_k['Ime'].tolist())
+                with col_c:
+                    trenutna_c = 0
+                    if 'Cena' in df_k.columns:
+                        try: trenutna_c = int(df_k[df_k['Ime'] == izabrani_r]['Cena'].values[0])
+                        except: trenutna_c = 0
+                    nova_c = st.number_input("Nova cena [dan]:", value=trenutna_c, step=100)
+                
+                if st.button("Sačuvaj izmenu cene"):
+                    azuriraj_cenu_radnika(izabrani_r, nova_c)
+                    st.success(f"Cena za {izabrani_r} uspešno sačuvana!")
+                    st.rerun()
+            else:
+                st.info("Nema registrovanih radnika.")
+
         with tabs[4]: # GRADILIŠTA
             novo = st.text_input("Dodaj novo gradilište:")
             if st.button("Dodaj"): 
@@ -163,13 +196,8 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     prikaz_g = pd.merge(df_g, statistika_g, left_on='Naziv', right_on='Gradiliste', how='left')
                     prikaz_g['Ukupno Prijave'] = prikaz_g['Ukupno Prijave'].fillna(0).astype(int)
                     st.dataframe(prikaz_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
-                else:
-                    df_g['Ukupno Prijave'] = 0
-                    st.dataframe(df_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
             
-        with tabs[2]: st.dataframe(df_k, use_container_width=True)
-        
-        with tabs[3]: # SATI I DANI
+        with tabs[3]: # SATI
             if not df_l.empty:
                 df_sati, df_dani = obracunaj_sate_i_dane(df_l)
                 if not df_sati.empty:
@@ -201,7 +229,7 @@ if not prijavljeno_ime:
             ime_in = st.text_input("Ime i Prezime:")
             if st.button("Registruj me"):
                 if ime_in and email_in:
-                    dodaj_u_tabelu("korisnici", [ime_in, email_in])
+                    dodaj_u_tabelu("korisnici", [ime_in, email_in, 0]) # Dodajemo i cenu 0 pri registraciji
                     cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
 else:
     status = "ODLAZAK"
