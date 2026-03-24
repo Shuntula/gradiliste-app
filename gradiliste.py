@@ -242,4 +242,76 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
                     stat_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
                     p_g = pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left')
-                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astyp
+                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astype(int)
+                    st.dataframe(p_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
+
+        with tabs[5]: # TROŠKOVI
+            st.subheader("Svi dodatni troškovi")
+            if not df_t.empty:
+                st.dataframe(df_t.iloc[::-1], use_container_width=True)
+                st.metric("Ukupno dodatni troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
+        st.stop()
+
+# --- RADNIČKO OKRUŽENJE ---
+st.title("👷 Digitalna Prijava")
+e_cookie = cookies.get("radnik_email")
+p_ime = None
+if e_cookie and not df_k.empty:
+    match = df_k[df_k['Email'] == e_cookie]
+    if not match.empty: p_ime = match.iloc[0]['Ime']
+
+if not p_ime:
+    e_in = st.text_input("Email:").strip().lower()
+    if e_in:
+        match = df_k[df_k['Email'] == e_in] if not df_k.empty else pd.DataFrame()
+        if not match.empty:
+            if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"):
+                cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
+        else:
+            i_in = st.text_input("Ime i Prezime:")
+            if st.button("Registruj me"):
+                if i_in and e_in:
+                    dodaj_u_tabelu("korisnici", [i_in, e_in, 0]); cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
+else:
+    if st.session_state.unos_troska:
+        st.subheader("💰 Unos troška")
+        if st.button("⬅️ Otkaži"): st.session_state.unos_troska = False; st.rerun()
+        kat = st.selectbox("Šta ste platili?", ["GORIVO", "HRANA", "MATERIJAL", "DRUGO"])
+        izn = st.number_input("Iznos u RSD:", min_value=0, step=50)
+        grad_t = st.selectbox("Za koje gradilište?", df_g['Naziv'].tolist() if not df_g.empty else ["Nema"])
+        if st.button("✅ SAČUVAJ TROŠAK", use_container_width=True):
+            if izn > 0:
+                vreme_t = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                dodaj_u_tabelu("troskovi", [p_ime, grad_t, kat, izn, vreme_t])
+                st.session_state.unos_troska = False; st.rerun()
+    else:
+        status, posl_g = "ODLAZAK", None
+        if not df_l.empty:
+            r_logs = df_l[df_l['Radnik'] == p_ime]
+            if not r_logs.empty: status = r_logs.iloc[-1]['Akcija']; posl_g = r_logs.iloc[-1]['Gradiliste']
+
+        st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{p_ime}</span>", unsafe_allow_html=True)
+        l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
+        def_idx = l_g.index(posl_g) if posl_g in l_g else 0
+        izbor = st.selectbox("🚩 gde se nalazite trenutno?", l_g, index=def_idx)
+        st.write("---")
+        if status == "ODLAZAK":
+            if izbor == "-- klikni ovde i izaberi gradilište --":
+                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
+                if st.button("✅ PRIJAVI SE NA POSAO"):
+                    dodaj_u_tabelu("log", [p_ime, "DOLAZAK", izbor, datetime.now().strftime("%d.%m.%Y %H:%M:%S")]); st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
+            if st.button("🛑 ODJAVI SE SA POSLA"):
+                dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, datetime.now().strftime("%d.%m.%Y %H:%M:%S")]); st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
+        if st.button("💰 DODAJ TROŠAK"):
+            st.session_state.unos_troska = True; st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.write("---")
+    if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
