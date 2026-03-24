@@ -8,7 +8,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # --- KONFIGURACIJA STRANICE ---
 st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide")
 
-# --- STILIZACIJA ---
+# --- STILIZACIJA (Dugmići i Animanicije) ---
 st.markdown("""
     <style>
     @keyframes blinking {
@@ -70,6 +70,18 @@ def dodaj_u_tabelu(sheet_name, red):
     sh.worksheet(sheet_name).append_row(red)
     st.cache_data.clear()
 
+# --- FUNKCIJA ZA BOJENJE DNEVNIKA ---
+def oboji_dnevnik(row):
+    danas = datetime.now().strftime("%d.%m.%Y")
+    boja = ''
+    # Ako je zapis od danas
+    if danas in str(row['Vreme']):
+        if row['Akcija'] == 'DOLAZAK':
+            boja = 'background-color: #c3e6cb; color: #155724' # Zelena pozadina, tamno zelena slova
+        elif row['Akcija'] == 'ODLAZAK':
+            boja = 'background-color: #f5c6cb; color: #721c24' # Crvena pozadina, tamno crvena slova
+    return [boja] * len(row)
+
 # --- POMOĆNE FUNKCIJE ---
 def format_u_hms(ukupno_sekundi):
     sati, ostalo = divmod(int(ukupno_sekundi), 3600)
@@ -77,14 +89,11 @@ def format_u_hms(ukupno_sekundi):
     return f"{sati:02d}:{minuti:02d}:{sekunde:02d}"
 
 def obracunaj_sate_i_dane(df):
-    if df.empty or 'Vreme' not in df.columns: return pd.DataFrame()
-    
-    # Priprema podataka
+    if df.empty or 'Vreme' not in df.columns: return pd.DataFrame(), pd.DataFrame()
     df['Vreme_DT'] = pd.to_datetime(df['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
     df = df.dropna(subset=['Vreme_DT']).sort_values(['Radnik', 'Vreme_DT'])
     df['Mesec'] = df['Vreme_DT'].dt.strftime("%m-%Y")
     df['Datum'] = df['Vreme_DT'].dt.strftime("%d.%m.%Y")
-    
     obracun_sati = []
     for radnik in df['Radnik'].unique():
         radnik_data = df[df['Radnik'] == radnik]
@@ -93,16 +102,10 @@ def obracunaj_sate_i_dane(df):
             if row['Akcija'] == "DOLAZAK": dolazak_vreme = row['Vreme_DT']
             elif row['Akcija'] == "ODLAZAK" and dolazak_vreme is not None:
                 razlika = (row['Vreme_DT'] - dolazak_vreme).total_seconds()
-                if razlika > 0: 
-                    obracun_sati.append([radnik, row['Mesec'], razlika])
+                if razlika > 0: obracun_sati.append([radnik, row['Mesec'], razlika])
                 dolazak_vreme = None
-    
-    # 1. Tabela sa satima
     df_sati = pd.DataFrame(obracun_sati, columns=["Radnik", "Mesec", "Sekunde"])
-    
-    # 2. Tabela sa radnim danima (Unique dates per worker per month)
     df_dani = df.groupby(['Radnik', 'Mesec'])['Datum'].nunique().reset_index(name='Radni Dani')
-    
     return df_sati, df_dani
 
 # --- KOLAČIĆI ---
@@ -129,23 +132,30 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
         st.header(f"📊 Admin Kontrola | R{broj_r} G{broj_g_aktivno}")
         tabs = st.tabs(["📅 Danas", "🕒 Dnevnik", "👥 Radnici", "⏱️ Sati", "🏗️ Gradilišta"])
         
-        with tabs[0]:
+        with tabs[0]: # DANAS
             st.metric("Aktivnih radnika", broj_r)
             if not df_prisutni_admin.empty:
                 st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
+            st.divider()
+            danasnji_datum = datetime.now().strftime("%d.%m.%Y")
+            df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
+            st.write("Sve današnje aktivnosti:")
+            # I ovde primenjujemo bojenje radi preglednosti
+            st.dataframe(df_danas.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
+
+        with tabs[1]: # DNEVNIK (Kompletan sa bojenjem današnjih zapisa)
+            if not df_l.empty:
+                st.dataframe(df_l.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
+            else: st.info("Dnevnik je prazan.")
         
-        with tabs[1]: st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
-        
-        with tabs[4]:
-            st.subheader("Baza gradilišta")
+        with tabs[4]: # GRADILIŠTA
             novo = st.text_input("Dodaj novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
-            
             if not df_g.empty:
-                if not df_l.empty:
-                    temp_l = df_l.copy()
+                temp_l = df_l.copy() if not df_l.empty else pd.DataFrame(columns=['Vreme', 'Akcija', 'Radnik', 'Gradiliste'])
+                if not temp_l.empty:
                     temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10)
                     dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
                     statistika_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
@@ -158,34 +168,22 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             
         with tabs[2]: st.dataframe(df_k, use_container_width=True)
         
-        with tabs[3]: # UNAPREĐENI OBRAČUN SATI I RADNIH DANA
+        with tabs[3]: # SATI I DANI
             if not df_l.empty:
                 df_sati, df_dani = obracunaj_sate_i_dane(df_l)
                 if not df_sati.empty:
                     m = st.selectbox("Izaberi mesec:", df_sati['Mesec'].unique())
-                    
-                    # Sumiramo sate za izabrani mesec
                     finalni_sati = df_sati[df_sati['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
                     finalni_sati['Ukupno Vreme'] = finalni_sati['Sekunde'].apply(format_u_hms)
-                    
-                    # Uzimamo radne dane za taj mesec
                     finalni_dani = df_dani[df_dani['Mesec'] == m]
-                    
-                    # Spajamo dve tabele u jednu krajnju
                     konacni_obracun = pd.merge(finalni_sati, finalni_dani, on='Radnik')
-                    
-                    # Prikaz tabele
                     st.table(konacni_obracun[['Radnik', 'Ukupno Vreme', 'Radni Dani']])
-                else:
-                    st.info("Nema dovoljno parova prijava za obračun.")
         st.stop()
 
 # --- RADNIČKO OKRUŽENJE ---
 st.title("👷 Digitalna Prijava")
 email_cookie = cookies.get("radnik_email")
-df_korisnici = ucitaj_podatke("korisnici")
 prijavljeno_ime = None
-
 if email_cookie and not df_k.empty:
     match = df_k[df_k['Email'] == email_cookie]
     if not match.empty: prijavljeno_ime = match.iloc[0]['Ime']
@@ -215,22 +213,15 @@ else:
             poslednje_gradiliste = poslednji_red['Gradiliste']
 
     st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{prijavljeno_ime}</span>", unsafe_allow_html=True)
-    
     if not df_g.empty:
         lista_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
         default_index = 0
-        if poslednje_gradiliste in lista_g:
-            default_index = lista_g.index(poslednje_gradiliste)
-            
+        if poslednje_gradiliste in lista_g: default_index = lista_g.index(poslednje_gradiliste)
         izbor = st.selectbox("🚩 gde se nalazite trenutno?", lista_g, index=default_index)
-        
-        if izbor == "-- klikni ovde i izaberi gradilište --":
-            st.info("izaberite lokaciju da se pojavi dugme.")
-
+        if izbor == "-- klikni ovde i izaberi gradilište --": st.info("izaberite lokaciju da se pojavi dugme.")
         st.write("---")
         vreme_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         col1, col2 = st.columns(2)
-        
         with col1:
             if izbor == "-- klikni ovde i izaberi gradilište --":
                 st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
@@ -244,7 +235,6 @@ else:
                 st.markdown('<div class="blago-trepcuce-zeleno">', unsafe_allow_html=True)
                 st.button("✅ PRIJAVLJENI STE", key="dis_pri")
                 st.markdown('</div>', unsafe_allow_html=True)
-
         with col2:
             if status == "DOLAZAK":
                 st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
@@ -254,7 +244,6 @@ else:
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="onemoguceno-dugme"><button>NISTE PRIJAVLJENI</button></div>', unsafe_allow_html=True)
-
     st.write("---")
     if st.button("Logout"):
         del cookies["radnik_email"]; cookies.save(); st.rerun()
