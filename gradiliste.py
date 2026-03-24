@@ -8,7 +8,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # --- KONFIGURACIJA STRANICE ---
 st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide")
 
-# --- INICIJALIZACIJA STANJA (Za navigaciju unutar kartice Radnici) ---
+# --- INICIJALIZACIJA STANJA ---
 if 'uredjivanje_cene' not in st.session_state:
     st.session_state.uredjivanje_cene = False
 
@@ -49,7 +49,8 @@ st.markdown("""
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     .admin-naslov { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
-    .trosak-box { font-size: 24px; font-weight: bold; color: #FF4B4B; padding: 10px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
+    .trosak-box { font-size: 24px; font-weight: bold; color: #FF4B4B; padding: 5px 10px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
+    .trosak-mesec-box { font-size: 24px; font-weight: bold; color: #FFA500; padding: 5px 10px; border: 2px solid #FFA500; border-radius: 10px; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -149,8 +150,8 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
             st.divider()
-            danasnji_datum = datetime.now().strftime("%d.%m.%Y")
-            df_danas = df_l[df_l['Vreme'].str.contains(danasnji_datum)].copy()
+            danas_str = datetime.now().strftime("%d.%m.%Y")
+            df_danas = df_l[df_l['Vreme'].str.contains(danas_str)].copy()
             st.dataframe(df_danas.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
 
         with tabs[1]: # DNEVNIK
@@ -158,9 +159,8 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 st.dataframe(df_l.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
             else: st.info("Dnevnik je prazan.")
         
-        with tabs[2]: # RADNICI (SA USLOVNIM PRIKAZOM)
+        with tabs[2]: # RADNICI
             if not st.session_state.uredjivanje_cene:
-                # GLAVNI PRIKAZ RADNIKA
                 st.subheader("Lista radnika i dnevnice")
                 if not df_k.empty:
                     prikaz_radnika = df_k.copy()
@@ -168,13 +168,35 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                         prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
                     st.dataframe(prikaz_radnika, use_container_width=True)
                     
+                    # --- PRORAČUN TROŠKOVA ---
                     danas_str = datetime.now().strftime("%d.%m.%Y")
+                    mesec_str = datetime.now().strftime("%m-%Y")
+                    
+                    # 1. Današnji trošak
                     radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_str))]['Radnik'].unique()
                     trosak_danas = 0
-                    if 'Cena' in df_k.columns:
-                        trosak_danas = df_k[df_k['Ime'].isin(radnici_danas)]['Cena'].replace('', 0).astype(float).sum()
                     
-                    st.markdown(f"<p style='font-size:20px;'>Troškovi za danas: <span class='trosak-box'>{trosak_danas:,.0f} RSD</span></p>", unsafe_allow_html=True)
+                    # 2. Mesečni trošak (Suma svih radnika: Dani u mesecu * Cena)
+                    trosak_mesec = 0
+                    
+                    if 'Cena' in df_k.columns and not df_l.empty:
+                        # Mapiramo cenu na radnike
+                        cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
+                        
+                        # Današnji:
+                        for r in radnici_danas:
+                            trosak_danas += float(cene_dict.get(r, 0))
+                        
+                        # Mesečni:
+                        _, df_dani_stat = obracunaj_sate_i_dane(df_l)
+                        if not df_dani_stat.empty:
+                            tekuci_mesec_dani = df_dani_stat[df_dani_stat['Mesec'] == mesec_str]
+                            for _, row in tekuci_mesec_dani.iterrows():
+                                radna_cena = float(cene_dict.get(row['Radnik'], 0))
+                                trosak_mesec += row['Radni Dani'] * radna_cena
+
+                    st.markdown(f"<p style='font-size:18px;'>Troškovi za danas: <span class='trosak-box'>{trosak_danas:,.0f} RSD</span></p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='font-size:18px;'>Troškovi u tekućem mesecu: <span class='trosak-mesec-box'>{trosak_mesec:,.0f} RSD</span></p>", unsafe_allow_html=True)
                     
                     st.write("")
                     if st.button("📝 Uredi cenu dnevnice"):
@@ -183,29 +205,24 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 else:
                     st.info("Nema registrovanih radnika.")
             else:
-                # STRANICA ZA UREĐIVANJE CENE
                 st.subheader("⚙️ Podešavanje dnevnice")
-                if st.button("⬅️ Nazad na listu"):
+                if st.button("⬅️ Nazad"):
                     st.session_state.uredjivanje_cene = False
                     st.rerun()
-                
                 st.divider()
                 col_r, col_c = st.columns(2)
                 with col_r:
-                    izabrani_r = st.selectbox("Izaberi radnika za promenu:", df_k['Ime'].tolist())
+                    izabrani_r = st.selectbox("Izaberi radnika:", df_k['Ime'].tolist())
                 with col_c:
                     trenutna_c = 0
                     if 'Cena' in df_k.columns:
                         try: trenutna_c = int(df_k[df_k['Ime'] == izabrani_r]['Cena'].values[0])
                         except: trenutna_c = 0
                     nova_c = st.number_input("Nova cena [dan]:", value=trenutna_c, step=100)
-                
-                if st.button("✅ Sačuvaj izmenu"):
+                if st.button("✅ Sačuvaj"):
                     azuriraj_cenu_radnika(izabrani_r, nova_c)
-                    st.success(f"Uspešno sačuvano za {izabrani_r}!")
-                    # Ostajemo na ovoj stranici dok korisnik ne klikne Nazad, ili možemo automatski vratiti:
-                    # st.session_state.uredjivanje_cene = False
-                    # st.rerun()
+                    st.success("Sačuvano!")
+                    st.rerun()
 
         with tabs[4]: # GRADILIŠTA
             novo = st.text_input("Dodaj novo gradilište:")
