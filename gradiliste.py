@@ -50,7 +50,6 @@ st.markdown("""
         border-radius: 15px !important; width: 100% !important;
     }
 
-    /* Stil za natpis radnika */
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     </style>
@@ -131,11 +130,30 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
         with tabs[1]: st.dataframe(df_l.iloc[::-1], use_container_width=True)
-        with tabs[4]:
+        
+        with tabs[4]: # GRADILIŠTA SA BROJAČEM PRIJAVA
+            st.subheader("Baza gradilišta")
             novo = st.text_input("Dodaj novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
-            st.dataframe(df_g, use_container_width=True)
+            
+            if not df_g.empty:
+                # Logika za sabiranje jedinstvenih dnevnih prijava
+                if not df_l.empty:
+                    temp_l = df_l.copy()
+                    temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10) # Izvlači samo DD.MM.YYYY
+                    # Filtriramo samo dolaske i uklanjamo duplikate (isti radnik, isto gradilište, isti dan)
+                    dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
+                    statistika_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
+                    
+                    # Spajamo sa glavnom listom gradilišta
+                    prikaz_g = pd.merge(df_g, statistika_g, left_on='Naziv', right_on='Gradiliste', how='left')
+                    prikaz_g['Ukupno Prijave'] = prikaz_g['Ukupno Prijave'].fillna(0).astype(int)
+                    st.dataframe(prikaz_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
+                else:
+                    df_g['Ukupno Prijave'] = 0
+                    st.dataframe(df_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
+            
         with tabs[2]: st.dataframe(df_k, use_container_width=True)
         with tabs[3]:
             res = obracunaj_sate(df_l)
@@ -179,7 +197,6 @@ else:
             status = poslednji_red['Akcija']
             poslednje_gradiliste = poslednji_red['Gradiliste']
 
-    # Prikaz radnika: "radnik:" (sivo) i "Ime i Prezime" (belo)
     st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{prijavljeno_ime}</span>", unsafe_allow_html=True)
     
     if not df_g.empty:
