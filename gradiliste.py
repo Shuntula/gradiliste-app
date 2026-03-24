@@ -11,45 +11,37 @@ st.set_page_config(page_title="Gradilište Log", page_icon="👷", layout="wide"
 # --- STILIZACIJA ---
 st.markdown("""
     <style>
-    /* Brzo treptanje za dugme PRIJAVI SE */
     @keyframes blinking {
         0% { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
         50% { background-color: #58d68d; box-shadow: 0 0 20px #58d68d; }
         100% { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
     }
-    
-    /* Blago pulsiranje za status PRIJAVLJENI STE */
     @keyframes subtle-green {
         0% { background-color: #1e7e34; opacity: 1; }
         50% { background-color: #28a745; opacity: 0.8; }
         100% { background-color: #1e7e34; opacity: 1; }
     }
-
     .trepcuce-dugme > div > button {
         height: 100px !important; font-size: 24px !important; font-weight: bold !important;
         color: white !important; animation: blinking 1.5s infinite;
         border: none !important; border-radius: 15px !important; width: 100% !important;
     }
-
     .blago-trepcuce-zeleno > div > button {
         height: 100px !important; font-size: 22px !important; font-weight: bold !important;
         color: white !important; animation: subtle-green 3s infinite;
         border: none !important; border-radius: 15px !important; width: 100% !important;
         pointer-events: none !important;
     }
-
     .onemoguceno-dugme > div > button {
         height: 100px !important; background-color: #e0e0e0 !important;
         color: #9e9e9e !important; border: 1px solid #bdbdbd !important;
         width: 100% !important; pointer-events: none !important;
     }
-
     .odjava-dugme > div > button {
         height: 100px !important; font-size: 24px !important; font-weight: bold !important;
         background-color: #dc3545 !important; color: white !important;
         border-radius: 15px !important; width: 100% !important;
     }
-
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     </style>
@@ -84,11 +76,16 @@ def format_u_hms(ukupno_sekundi):
     minuti, sekunde = divmod(ostalo, 60)
     return f"{sati:02d}:{minuti:02d}:{sekunde:02d}"
 
-def obracunaj_sate(df):
+def obracunaj_sate_i_dane(df):
     if df.empty or 'Vreme' not in df.columns: return pd.DataFrame()
+    
+    # Priprema podataka
     df['Vreme_DT'] = pd.to_datetime(df['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
     df = df.dropna(subset=['Vreme_DT']).sort_values(['Radnik', 'Vreme_DT'])
-    obracun = []
+    df['Mesec'] = df['Vreme_DT'].dt.strftime("%m-%Y")
+    df['Datum'] = df['Vreme_DT'].dt.strftime("%d.%m.%Y")
+    
+    obracun_sati = []
     for radnik in df['Radnik'].unique():
         radnik_data = df[df['Radnik'] == radnik]
         dolazak_vreme = None
@@ -96,9 +93,17 @@ def obracunaj_sate(df):
             if row['Akcija'] == "DOLAZAK": dolazak_vreme = row['Vreme_DT']
             elif row['Akcija'] == "ODLAZAK" and dolazak_vreme is not None:
                 razlika = (row['Vreme_DT'] - dolazak_vreme).total_seconds()
-                if razlika > 0: obracun.append([radnik, dolazak_vreme.strftime("%m-%Y"), razlika])
+                if razlika > 0: 
+                    obracun_sati.append([radnik, row['Mesec'], razlika])
                 dolazak_vreme = None
-    return pd.DataFrame(obracun, columns=["Radnik", "Mesec", "Sekunde"])
+    
+    # 1. Tabela sa satima
+    df_sati = pd.DataFrame(obracun_sati, columns=["Radnik", "Mesec", "Sekunde"])
+    
+    # 2. Tabela sa radnim danima (Unique dates per worker per month)
+    df_dani = df.groupby(['Radnik', 'Mesec'])['Datum'].nunique().reset_index(name='Radni Dani')
+    
+    return df_sati, df_dani
 
 # --- KOLAČIĆI ---
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
@@ -129,24 +134,21 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             if not df_prisutni_admin.empty:
                 st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
-        with tabs[1]: st.dataframe(df_l.iloc[::-1], use_container_width=True)
         
-        with tabs[4]: # GRADILIŠTA SA BROJAČEM PRIJAVA
+        with tabs[1]: st.dataframe(df_l.iloc[::-1] if not df_l.empty else df_l, use_container_width=True)
+        
+        with tabs[4]:
             st.subheader("Baza gradilišta")
             novo = st.text_input("Dodaj novo gradilište:")
             if st.button("Dodaj"): 
                 if novo: dodaj_u_tabelu("gradilista", [novo]); st.rerun()
             
             if not df_g.empty:
-                # Logika za sabiranje jedinstvenih dnevnih prijava
                 if not df_l.empty:
                     temp_l = df_l.copy()
-                    temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10) # Izvlači samo DD.MM.YYYY
-                    # Filtriramo samo dolaske i uklanjamo duplikate (isti radnik, isto gradilište, isti dan)
+                    temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10)
                     dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
                     statistika_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
-                    
-                    # Spajamo sa glavnom listom gradilišta
                     prikaz_g = pd.merge(df_g, statistika_g, left_on='Naziv', right_on='Gradiliste', how='left')
                     prikaz_g['Ukupno Prijave'] = prikaz_g['Ukupno Prijave'].fillna(0).astype(int)
                     st.dataframe(prikaz_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
@@ -155,18 +157,33 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     st.dataframe(df_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
             
         with tabs[2]: st.dataframe(df_k, use_container_width=True)
-        with tabs[3]:
-            res = obracunaj_sate(df_l)
-            if not res.empty:
-                m = st.selectbox("Izaberi mesec:", res['Mesec'].unique())
-                finalni = res[res['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
-                finalni['Ukupno Vreme'] = finalni['Sekunde'].apply(format_u_hms)
-                st.table(finalni[['Radnik', 'Ukupno Vreme']])
+        
+        with tabs[3]: # UNAPREĐENI OBRAČUN SATI I RADNIH DANA
+            if not df_l.empty:
+                df_sati, df_dani = obracunaj_sate_i_dane(df_l)
+                if not df_sati.empty:
+                    m = st.selectbox("Izaberi mesec:", df_sati['Mesec'].unique())
+                    
+                    # Sumiramo sate za izabrani mesec
+                    finalni_sati = df_sati[df_sati['Mesec'] == m].groupby('Radnik')['Sekunde'].sum().reset_index()
+                    finalni_sati['Ukupno Vreme'] = finalni_sati['Sekunde'].apply(format_u_hms)
+                    
+                    # Uzimamo radne dane za taj mesec
+                    finalni_dani = df_dani[df_dani['Mesec'] == m]
+                    
+                    # Spajamo dve tabele u jednu krajnju
+                    konacni_obracun = pd.merge(finalni_sati, finalni_dani, on='Radnik')
+                    
+                    # Prikaz tabele
+                    st.table(konacni_obracun[['Radnik', 'Ukupno Vreme', 'Radni Dani']])
+                else:
+                    st.info("Nema dovoljno parova prijava za obračun.")
         st.stop()
 
 # --- RADNIČKO OKRUŽENJE ---
 st.title("👷 Digitalna Prijava")
 email_cookie = cookies.get("radnik_email")
+df_korisnici = ucitaj_podatke("korisnici")
 prijavljeno_ime = None
 
 if email_cookie and not df_k.empty:
