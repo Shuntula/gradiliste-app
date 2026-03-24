@@ -49,8 +49,22 @@ st.markdown("""
         border-radius: 15px !important; width: 100% !important;
         pointer-events: none !important; font-weight: bold !important;
     }
-    .uredi-cenu-kontejner { text-align: center; margin-top: 50px !important; margin-bottom: 20px; }
-    .uredi-cenu-kontejner > div > button { width: auto !important; padding-left: 40px !important; padding-right: 40px !important; font-size: 16px !important; }
+
+    /* CENTRIRANJE DUGMETA ZA UREĐIVANJE CENE */
+    .uredi-cenu-kontejner {
+        display: flex;
+        justify-content: center;
+        margin-top: 50px !important;
+        margin-bottom: 30px;
+        width: 100%;
+    }
+    .uredi-cenu-kontejner > div > button {
+        width: auto !important;
+        padding-left: 50px !important;
+        padding-right: 50px !important;
+        font-size: 16px !important;
+    }
+
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     .admin-naslov { font-size: 22px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 50px; padding: 10px; border-bottom: 1px solid #333; }
@@ -60,7 +74,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- POVEZIVANJE ---
+# --- POVEZIVANJE SA GOOGLE ---
 @st.cache_resource
 def povezi_google():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -172,27 +186,20 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             if not st.session_state.uredjivanje_cene:
                 st.subheader("Lista radnika")
                 if not df_k.empty:
-                    # Traženje naziva kolone za cenu u bazi
                     col_cena_raw = 'Cena' if 'Cena' in df_k.columns else ('cena [dan]' if 'cena [dan]' in df_k.columns else None)
-                    
                     p_radnika = df_k.copy()
                     if 'Email' in p_radnika.columns: p_radnika = p_radnika.drop(columns=['Email'])
-                    if col_cena_raw in p_radnika.columns:
-                        p_radnika = p_radnika.rename(columns={col_cena_raw: 'cena [dan]'})
-                    
+                    if col_cena_raw in p_radnika.columns: p_radnika = p_radnika.rename(columns={col_cena_raw: 'cena [dan]'})
                     st.dataframe(p_radnika, use_container_width=True)
                     
-                    # PRORAČUN TROŠKOVA
+                    # PRORAČUN
                     if col_cena_raw:
                         danas_dt = datetime.now().strftime("%d.%m.%Y")
                         mesec_dt = datetime.now().strftime("%m-%Y")
                         radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique()
-                        
                         t_danas, t_mesec = 0, 0
                         cene_dict = pd.Series(df_k[col_cena_raw].values, index=df_k.Ime).to_dict()
-                        
                         for r in radnici_danas: t_danas += float(cene_dict.get(r, 0))
-                        
                         _, df_stat_dani = obracunaj_sate_i_dane(df_l)
                         if not df_stat_dani.empty:
                             te_mesec_dani = df_stat_dani[df_stat_dani['Mesec'] == mesec_dt]
@@ -202,19 +209,18 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi za danas:<br><span class='trosak-box'>{t_danas:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi u tekućem mesecu:<br><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     
+                    # CENTRIRANO DUGME
                     st.markdown('<div class="uredi-cenu-kontejner">', unsafe_allow_html=True)
                     if st.button("📝 Uredi cenu dnevnice"):
                         st.session_state.uredjivanje_cene = True
                         st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
-                else:
-                    st.info("Nema registrovanih radnika.")
             else:
                 if st.button("⬅️ Nazad"): st.session_state.uredjivanje_cene = False; st.rerun()
                 col_r, col_c = st.columns(2)
                 iz_r = st.selectbox("Radnik:", df_k['Ime'].tolist())
-                col_cena_raw = 'Cena' if 'Cena' in df_k.columns else ('cena [dan]' if 'cena [dan]' in df_k.columns else None)
-                cur_c = int(df_k[df_k['Ime'] == iz_r][col_cena_raw].values[0]) if col_cena_raw else 0
+                col_cena_raw = 'Cena' if 'Cena' in df_k.columns else 'cena [dan]'
+                cur_c = int(df_k[df_k['Ime'] == iz_r][col_cena_raw].values[0]) if not df_k.empty else 0
                 new_c = st.number_input("Nova Cena:", value=cur_c, step=100)
                 if st.button("✅ Sačuvaj"): azuriraj_cenu_radnika(iz_r, new_c); st.rerun()
 
@@ -236,76 +242,4 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
                     stat_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
                     p_g = pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left')
-                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astype(int)
-                    st.dataframe(p_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
-
-        with tabs[5]: # TROŠKOVI
-            st.subheader("Svi dodatni troškovi")
-            if not df_t.empty:
-                st.dataframe(df_t.iloc[::-1], use_container_width=True)
-                st.metric("Ukupno dodatni troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
-        st.stop()
-
-# --- RADNIČKO OKRUŽENJE ---
-st.title("👷 Digitalna Prijava")
-e_cookie = cookies.get("radnik_email")
-p_ime = None
-if e_cookie and not df_k.empty:
-    match = df_k[df_k['Email'] == e_cookie]
-    if not match.empty: p_ime = match.iloc[0]['Ime']
-
-if not p_ime:
-    e_in = st.text_input("Email:").strip().lower()
-    if e_in:
-        match = df_k[df_k['Email'] == e_in] if not df_k.empty else pd.DataFrame()
-        if not match.empty:
-            if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"):
-                cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
-        else:
-            i_in = st.text_input("Ime i Prezime:")
-            if st.button("Registruj me"):
-                if i_in and e_in:
-                    dodaj_u_tabelu("korisnici", [i_in, e_in, 0]); cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
-else:
-    if st.session_state.unos_troska:
-        st.subheader("💰 Unos troška")
-        if st.button("⬅️ Otkaži"): st.session_state.unos_troska = False; st.rerun()
-        kat = st.selectbox("Šta ste platili?", ["GORIVO", "HRANA", "MATERIJAL", "DRUGO"])
-        izn = st.number_input("Iznos u RSD:", min_value=0, step=50)
-        grad_t = st.selectbox("Za koje gradilište?", df_g['Naziv'].tolist() if not df_g.empty else ["Nema"])
-        if st.button("✅ SAČUVAJ TROŠAK", use_container_width=True):
-            if izn > 0:
-                vreme_t = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-                dodaj_u_tabelu("troskovi", [p_ime, grad_t, kat, izn, vreme_t])
-                st.session_state.unos_troska = False; st.rerun()
-    else:
-        status, posl_g = "ODLAZAK", None
-        if not df_l.empty:
-            r_logs = df_l[df_l['Radnik'] == p_ime]
-            if not r_logs.empty: status = r_logs.iloc[-1]['Akcija']; posl_g = r_logs.iloc[-1]['Gradiliste']
-
-        st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{p_ime}</span>", unsafe_allow_html=True)
-        l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist()
-        def_idx = l_g.index(posl_g) if posl_g in l_g else 0
-        izbor = st.selectbox("🚩 gde se nalazite trenutno?", l_g, index=def_idx)
-        st.write("---")
-        if status == "ODLAZAK":
-            if izbor == "-- klikni ovde i izaberi gradilište --":
-                st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
-                if st.button("✅ PRIJAVI SE NA POSAO"):
-                    dodaj_u_tabelu("log", [p_ime, "DOLAZAK", izbor, datetime.now().strftime("%d.%m.%Y %H:%M:%S")]); st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
-            if st.button("🛑 ODJAVI SE SA POSLA"):
-                dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, datetime.now().strftime("%d.%m.%Y %H:%M:%S")]); st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
-        if st.button("💰 DODAJ TROŠAK"):
-            st.session_state.unos_troska = True; st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.write("---")
-    if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
+                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astyp
