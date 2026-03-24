@@ -50,19 +50,19 @@ st.markdown("""
         pointer-events: none !important; font-weight: bold !important;
     }
 
-    /* CENTRIRANJE DUGMETA ZA UREĐIVANJE CENE */
-    .uredi-cenu-kontejner {
+    /* MATEMATIČKI PRECIZNO CENTRIRANJE DUGMETA */
+    .centriraj-dugme-fix {
         display: flex;
         justify-content: center;
-        margin-top: 50px !important;
-        margin-bottom: 30px;
         width: 100%;
+        margin-top: 50px !important;
     }
-    .uredi-cenu-kontejner > div > button {
+    .centriraj-dugme-fix > div {
         width: auto !important;
-        padding-left: 50px !important;
-        padding-right: 50px !important;
-        font-size: 16px !important;
+    }
+    .centriraj-dugme-fix button {
+        width: 250px !important; /* Fiksna širina da bi uvek bilo isto */
+        margin: 0 auto !important;
     }
 
     .label-radnik { font-size: 16px; color: #BBB; }
@@ -192,10 +192,8 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     if col_cena_raw in p_radnika.columns: p_radnika = p_radnika.rename(columns={col_cena_raw: 'cena [dan]'})
                     st.dataframe(p_radnika, use_container_width=True)
                     
-                    # PRORAČUN
                     if col_cena_raw:
-                        danas_dt = datetime.now().strftime("%d.%m.%Y")
-                        mesec_dt = datetime.now().strftime("%m-%Y")
+                        danas_dt, mesec_dt = datetime.now().strftime("%d.%m.%Y"), datetime.now().strftime("%m-%Y")
                         radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique()
                         t_danas, t_mesec = 0, 0
                         cene_dict = pd.Series(df_k[col_cena_raw].values, index=df_k.Ime).to_dict()
@@ -203,14 +201,13 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                         _, df_stat_dani = obracunaj_sate_i_dane(df_l)
                         if not df_stat_dani.empty:
                             te_mesec_dani = df_stat_dani[df_stat_dani['Mesec'] == mesec_dt]
-                            for _, row in te_mesec_dani.iterrows():
-                                t_mesec += row['Radni Dani'] * float(cene_dict.get(row['Radnik'], 0))
+                            for _, row in te_mesec_dani.iterrows(): t_mesec += row['Radni Dani'] * float(cene_dict.get(row['Radnik'], 0))
 
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi za danas:<br><span class='trosak-box'>{t_danas:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi u tekućem mesecu:<br><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     
-                    # CENTRIRANO DUGME
-                    st.markdown('<div class="uredi-cenu-kontejner">', unsafe_allow_html=True)
+                    # PRECIZNO CENTRIRANO DUGME
+                    st.markdown('<div class="centriraj-dugme-fix">', unsafe_allow_html=True)
                     if st.button("📝 Uredi cenu dnevnice"):
                         st.session_state.uredjivanje_cene = True
                         st.rerun()
@@ -219,8 +216,8 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 if st.button("⬅️ Nazad"): st.session_state.uredjivanje_cene = False; st.rerun()
                 col_r, col_c = st.columns(2)
                 iz_r = st.selectbox("Radnik:", df_k['Ime'].tolist())
-                col_cena_raw = 'Cena' if 'Cena' in df_k.columns else 'cena [dan]'
-                cur_c = int(df_k[df_k['Ime'] == iz_r][col_cena_raw].values[0]) if not df_k.empty else 0
+                col_cena_raw = 'Cena' if 'Cena' in df_k.columns else ('cena [dan]' if 'cena [dan]' in df_k.columns else None)
+                cur_c = int(df_k[df_k['Ime'] == iz_r][col_cena_raw].values[0]) if col_cena_raw else 0
                 new_c = st.number_input("Nova Cena:", value=cur_c, step=100)
                 if st.button("✅ Sačuvaj"): azuriraj_cenu_radnika(iz_r, new_c); st.rerun()
 
