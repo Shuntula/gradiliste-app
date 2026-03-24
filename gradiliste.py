@@ -45,6 +45,7 @@ st.markdown("""
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     .admin-naslov { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
+    .trosak-box { font-size: 24px; font-weight: bold; color: #FF4B4B; padding: 10px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -75,10 +76,8 @@ def azuriraj_cenu_radnika(ime, nova_cena):
     client = povezi_google()
     sh = client.open("Baza Gradiliste")
     ws = sh.worksheet("korisnici")
-    # Pronalazimo red u kom je radnik
     cell = ws.find(ime)
     if cell:
-        # Ažuriramo 3. kolonu (Cena) u tom redu
         ws.update_cell(cell.row, 3, nova_cena)
         st.cache_data.clear()
 
@@ -155,15 +154,27 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 st.dataframe(df_l.iloc[::-1].style.apply(oboji_dnevnik, axis=1), use_container_width=True)
             else: st.info("Dnevnik je prazan.")
         
-        with tabs[2]: # RADNICI (SA UNOSOM CENE)
+        with tabs[2]: # RADNICI
             st.subheader("Lista radnika i dnevnice")
-            # Prikaz tabele sa preimenovanom kolonom radi lepšeg izgleda
             if not df_k.empty:
                 prikaz_radnika = df_k.copy()
                 if 'Cena' in prikaz_radnika.columns:
                     prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
                 st.dataframe(prikaz_radnika, use_container_width=True)
                 
+                # --- NOVO: TROŠKOVI ZA DANAS ---
+                danas = datetime.now().strftime("%d.%m.%Y")
+                # Nalazimo jedinstvena imena radnika koji su se danas prijavili
+                radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas))]['Radnik'].unique()
+                
+                trosak_danas = 0
+                if 'Cena' in df_k.columns:
+                    # Filtriramo bazu korisnika samo na one koji su došli danas i sabiramo kolonu Cena
+                    trosak_danas = df_k[df_k['Ime'].isin(radnici_danas)]['Cena'].replace('', 0).astype(float).sum()
+                
+                st.markdown(f"<p style='font-size:20px;'>Troškovi za danas: <span class='trosak-box'>{trosak_danas:,.0f} RSD</span></p>", unsafe_allow_html=True)
+                # -------------------------------
+
                 st.divider()
                 st.subheader("Uredi cenu dnevnice")
                 col_r, col_c = st.columns(2)
@@ -178,7 +189,7 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 
                 if st.button("Sačuvaj izmenu cene"):
                     azuriraj_cenu_radnika(izabrani_r, nova_c)
-                    st.success(f"Cena za {izabrani_r} uspešno sačuvana!")
+                    st.success(f"Cena sačuvana!")
                     st.rerun()
             else:
                 st.info("Nema registrovanih radnika.")
@@ -229,7 +240,7 @@ if not prijavljeno_ime:
             ime_in = st.text_input("Ime i Prezime:")
             if st.button("Registruj me"):
                 if ime_in and email_in:
-                    dodaj_u_tabelu("korisnici", [ime_in, email_in, 0]) # Dodajemo i cenu 0 pri registraciji
+                    dodaj_u_tabelu("korisnici", [ime_in, email_in, 0])
                     cookies["radnik_email"] = email_in; cookies.save(); st.rerun()
 else:
     status = "ODLAZAK"
