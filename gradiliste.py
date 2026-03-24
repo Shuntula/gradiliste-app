@@ -163,31 +163,27 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
             if not st.session_state.uredjivanje_cene:
                 st.subheader("Lista radnika i dnevnice")
                 if not df_k.empty:
+                    # SAKRIVANJE EMAIL KOLONE
                     prikaz_radnika = df_k.copy()
+                    if 'Email' in prikaz_radnika.columns:
+                        prikaz_radnika = prikaz_radnika.drop(columns=['Email'])
                     if 'Cena' in prikaz_radnika.columns:
                         prikaz_radnika = prikaz_radnika.rename(columns={'Cena': 'cena [dan]'})
+                    
                     st.dataframe(prikaz_radnika, use_container_width=True)
                     
-                    # --- PRORAČUN TROŠKOVA ---
                     danas_str = datetime.now().strftime("%d.%m.%Y")
                     mesec_str = datetime.now().strftime("%m-%Y")
                     
-                    # 1. Današnji trošak
                     radnici_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_str))]['Radnik'].unique()
                     trosak_danas = 0
-                    
-                    # 2. Mesečni trošak (Suma svih radnika: Dani u mesecu * Cena)
                     trosak_mesec = 0
                     
                     if 'Cena' in df_k.columns and not df_l.empty:
-                        # Mapiramo cenu na radnike
                         cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
-                        
-                        # Današnji:
                         for r in radnici_danas:
                             trosak_danas += float(cene_dict.get(r, 0))
                         
-                        # Mesečni:
                         _, df_dani_stat = obracunaj_sate_i_dane(df_l)
                         if not df_dani_stat.empty:
                             tekuci_mesec_dani = df_dani_stat[df_dani_stat['Mesec'] == mesec_str]
@@ -198,7 +194,6 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                     st.markdown(f"<p style='font-size:18px;'>Troškovi za danas: <span class='trosak-box'>{trosak_danas:,.0f} RSD</span></p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='font-size:18px;'>Troškovi u tekućem mesecu: <span class='trosak-mesec-box'>{trosak_mesec:,.0f} RSD</span></p>", unsafe_allow_html=True)
                     
-                    st.write("")
                     if st.button("📝 Uredi cenu dnevnice"):
                         st.session_state.uredjivanje_cene = True
                         st.rerun()
