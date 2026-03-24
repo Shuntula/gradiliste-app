@@ -50,19 +50,13 @@ st.markdown("""
         pointer-events: none !important; font-weight: bold !important;
     }
 
-    /* MATEMATIČKI PRECIZNO CENTRIRANJE DUGMETA */
-    .centriraj-dugme-fix {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-        margin-top: 50px !important;
-    }
-    .centriraj-dugme-fix > div {
+    /* SPECIJALNI STIL ZA MANJE DUGME ZA CENU */
+    .mala-slova-dugme > div > button {
+        font-size: 14px !important;
+        height: auto !important;
+        padding: 8px 20px !important;
         width: auto !important;
-    }
-    .centriraj-dugme-fix button {
-        width: 250px !important; /* Fiksna širina da bi uvek bilo isto */
-        margin: 0 auto !important;
+        margin-top: 40px !important;
     }
 
     .label-radnik { font-size: 16px; color: #BBB; }
@@ -206,12 +200,14 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi za danas:<br><span class='trosak-box'>{t_danas:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                         st.markdown(f"<div class='centriran-tekst'><p style='font-size:18px;'>Troškovi u tekućem mesecu:<br><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     
-                    # PRECIZNO CENTRIRANO DUGME
-                    st.markdown('<div class="centriraj-dugme-fix">', unsafe_allow_html=True)
-                    if st.button("📝 Uredi cenu dnevnice"):
-                        st.session_state.uredjivanje_cene = True
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    # --- NOVO: CENTRIRANJE DUGMETA POMOĆU KOLONA I CSS-A ---
+                    col_btn_1, col_btn_2, col_btn_3 = st.columns([1, 2, 1])
+                    with col_btn_2:
+                        st.markdown('<div class="centriran-tekst mala-slova-dugme">', unsafe_allow_html=True)
+                        if st.button("📝 Uredi cenu dnevnice"):
+                            st.session_state.uredjivanje_cene = True
+                            st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
             else:
                 if st.button("⬅️ Nazad"): st.session_state.uredjivanje_cene = False; st.rerun()
                 col_r, col_c = st.columns(2)
@@ -304,11 +300,4 @@ else:
             st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
             if st.button("🛑 ODJAVI SE SA POSLA"):
                 dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, datetime.now().strftime("%d.%m.%Y %H:%M:%S")]); st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
-        if st.button("💰 DODAJ TROŠAK"):
-            st.session_state.unos_troska = True; st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.write("---")
-    if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
+            st.markdown
