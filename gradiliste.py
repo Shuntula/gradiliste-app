@@ -50,7 +50,6 @@ st.markdown("""
         pointer-events: none !important; font-weight: bold !important;
     }
 
-    /* DISKRETNO I ODMAKNUTO DUGME ZA CENU (CENTRIRANO) */
     .diskretno-dugme {
         display: flex;
         justify-content: center;
@@ -167,10 +166,22 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
         
         st.markdown(f"<div class='admin-naslov'>📊 Admin Kontrola | R{broj_r} G{broj_g_aktivno}</div>", unsafe_allow_html=True)
         
-        # PROMENJEN REDOSLED KARTICA - RADNICI PRVI
-        tabs = st.tabs(["👥 Radnici", "📅 Danas", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
+        # TABOVI SA NOVIM REDOSLEDOM (Danas prvi, Radnici drugi)
+        tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
-        with tabs[0]: # RADNICI (Sada prvi)
+        with tabs[0]: # DANAS
+            st.metric("Aktivnih radnika", broj_r)
+            st.subheader("Pregled aktivnosti za danas")
+            if not df_prisutni_admin.empty: st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
+            else: st.info("Nema prijavljenih.")
+            st.divider()
+            danas_str = datetime.now().strftime("%d.%m.%Y")
+            df_danas = df_l[df_l['Vreme'].str.contains(danas_str)].copy()
+            if not df_danas.empty:
+                df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index': 'Br.'})
+                st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
+
+        with tabs[1]: # RADNICI (Drugi po redu)
             if not st.session_state.uredjivanje_cene:
                 st.subheader("Lista radnika")
                 if not df_k.empty:
@@ -206,18 +217,6 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 new_c = st.number_input("Nova Cena:", value=cur_c, step=100)
                 if st.button("✅ Sačuvaj"): azuriraj_cenu_radnika(iz_r, new_c); st.rerun()
 
-        with tabs[1]: # DANAS
-            st.metric("Aktivnih radnika", broj_r)
-            st.subheader("Pregled aktivnosti za danas")
-            if not df_prisutni_admin.empty: st.dataframe(df_prisutni_admin[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
-            else: st.info("Nema prijavljenih.")
-            st.divider()
-            danas_str = datetime.now().strftime("%d.%m.%Y")
-            df_danas = df_l[df_l['Vreme'].str.contains(danas_str)].copy()
-            if not df_danas.empty:
-                df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index': 'Br.'})
-                st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
-
         with tabs[2]: # DNEVNIK
             if not df_l.empty:
                 df_l_prikaz = df_l.iloc[::-1].reset_index().rename(columns={'index': 'Br.'})
@@ -240,3 +239,35 @@ if st.sidebar.text_input("Lozinka:", type="password") == "admin":
                 if not temp_l.empty:
                     temp_l['Datum'] = temp_l['Vreme'].str.slice(0, 10)
                     dolasci = temp_l[temp_l['Akcija'] == 'DOLAZAK'].drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum'])
+                    stat_g = dolasci.groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
+                    p_g = pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left')
+                    p_g['Ukupno Prijave'] = p_g['Ukupno Prijave'].fillna(0).astype(int)
+                    st.dataframe(p_g[['Naziv', 'Ukupno Prijave']], use_container_width=True)
+
+        with tabs[5]: # TROŠKOVI
+            st.subheader("Svi dodatni troškovi")
+            if not df_t.empty:
+                st.dataframe(df_t.iloc[::-1], use_container_width=True)
+                st.metric("Ukupno dodatni troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
+        st.stop()
+
+# --- RADNIČKO OKRUŽENJE ---
+st.title("👷 Digitalna Prijava")
+e_cookie = cookies.get("radnik_email")
+p_ime = None
+if e_cookie and not df_k.empty:
+    match = df_k[df_k['Email'] == e_cookie]
+    if not match.empty: p_ime = match.iloc[0]['Ime']
+
+if not p_ime:
+    e_in = st.text_input("Email:").strip().lower()
+    if e_in:
+        match = df_k[df_k['Email'] == e_in] if not df_k.empty else pd.DataFrame()
+        if not match.empty:
+            if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"):
+                cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
+        else:
+            i_in = st.text_input("Ime i Prezime:")
+            if st.button("Registruj me"):
+                if i_in and e_in:
+                    dodaj_u_tabelu("korisnici", [i_in, e_in, 0]); cookies["radnik_email"] = e_in; cookies
