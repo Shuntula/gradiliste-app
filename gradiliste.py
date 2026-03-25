@@ -23,15 +23,26 @@ st.markdown("""
     <style>
     @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); } 70% { box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); } 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); } }
     @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); } 70% { box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); } 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); } }
+    
     .trepcuce-dugme > div > button { height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }
     .odjava-dugme > div > button { height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }
     .trosak-dugme-plavo > div > button { height: 70px !important; font-size: 20px !important; color: white !important; background-color: #007bff !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; }
     .onemoguceno-dugme > div > button { height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }
+    
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
-    .admin-naslov { font-size: 22px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 40px; padding: 10px; border-bottom: 1px solid #333; }
     
-    /* BOX STILOVI ZA TROŠKOVE */
+    /* POVEĆAN NASLOV ADMINA */
+    .admin-naslov { 
+        font-size: 32px; /* Povećano sa 22px */
+        font-weight: bold; 
+        text-align: center; 
+        width: 100%; 
+        margin-bottom: 50px; 
+        padding: 10px; 
+        border-bottom: 1px solid #333; 
+    }
+    
     .trosak-box { font-size: 22px; font-weight: bold; color: #FF4B4B; padding: 5px 15px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
     .trosak-mesec-box { font-size: 22px; font-weight: bold; color: #FFA500; padding: 5px 15px; border: 2px solid #FFA500; border-radius: 10px; display: inline-block; }
     .centriran-tekst { text-align: center; width: 100%; margin: 20px 0; }
@@ -116,6 +127,7 @@ if df_k is not None:
         
         with tabs[0]: # DANAS
             st.metric("Aktivno", br_r)
+            st.subheader("Pregled aktivnosti za danas")
             if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
             danas_str = datetime.now().strftime("%d.%m.%Y")
@@ -123,33 +135,27 @@ if df_k is not None:
             if not df_danas.empty:
                 st.dataframe(df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'}).style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
 
-        with tabs[1]: # RADNICI (Troškovi i dnevnice)
+        with tabs[1]: # RADNICI
             if not st.session_state.get('uredjivanje_cene', False):
                 st.subheader("Lista radnika")
                 if not df_k.empty:
-                    # Prikaz tabele bez emaila
                     p_k = df_k.copy()
                     if 'Email' in p_k.columns: p_k = p_k.drop(columns=['Email'])
                     st.dataframe(p_k, use_container_width=True)
                     
-                    # PRORAČUN MATEMATIKE
-                    danas_dt = datetime.now().strftime("%d.%m.%Y")
-                    mesec_dt = datetime.now().strftime("%m-%Y")
+                    danas_dt, mesec_dt = datetime.now().strftime("%d.%m.%Y"), datetime.now().strftime("%m-%Y")
                     r_danas = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
                     
                     t_danas, t_mesec = 0, 0
                     if 'Cena' in df_k.columns:
                         cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
-                        # Danas:
                         for r in r_danas: t_danas += float(cene_dict.get(r, 0))
-                        # Mesec:
                         _, df_stat_dani = obracunaj_sate_i_dane(df_l)
                         if not df_stat_dani.empty:
                             te_m = df_stat_dani[df_stat_dani['Mesec'] == mesec_dt]
                             for _, row in te_m.iterrows():
                                 t_mesec += row['Radni Dani'] * float(cene_dict.get(row['Radnik'], 0))
 
-                    # CENTRIRANI PRIKAZ SA NASLOVIMA
                     st.markdown(f"""
                         <div class='centriran-tekst'>
                             <p style='margin-bottom:5px; font-size:16px;'>Troškovi za danas:</p>
@@ -180,7 +186,7 @@ if df_k is not None:
                 df_p = df_l.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                 st.dataframe(df_p.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
         
-        with tabs[3]: # DNEVNICE (Radni dani)
+        with tabs[3]: # DNEVNICE
             if not df_l.empty:
                 _, d_stat = obracunaj_sate_i_dane(df_l)
                 if not d_stat.empty:
@@ -198,10 +204,10 @@ if df_k is not None:
                     st.dataframe(pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left').fillna(0)[['Naziv', 'Ukupno Prijave']], use_container_width=True)
                 else: st.dataframe(df_g, use_container_width=True)
 
-        with tabs[5]: # TROŠKOVI (DODATNI)
+        with tabs[5]: # TROŠKOVI
             if not df_t.empty:
                 st.dataframe(df_t.iloc[::-1], use_container_width=True)
-                st.metric("Suma svih računa", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
+                st.metric("Ukupno troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
         st.stop()
 
     # --- RADNIČKO OKRUŽENJE ---
