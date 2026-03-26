@@ -45,7 +45,16 @@ st.markdown("""
     
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
-    .admin-naslov { font-size: 32px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 10px; padding: 10px; }
+    
+    /* GLAVNI NASLOV - SADA 28px */
+    .admin-naslov { 
+        font-size: 28px; 
+        font-weight: bold; 
+        text-align: center; 
+        width: 100%; 
+        margin-bottom: 10px; 
+        padding: 10px; 
+    }
     
     .trosak-box { font-size: 22px; font-weight: bold; color: #FF4B4B; padding: 5px 15px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
     .trosak-mesec-box { font-size: 22px; font-weight: bold; color: #FFA500; padding: 5px 15px; border: 2px solid #FFA500; border-radius: 10px; display: inline-block; }
@@ -120,12 +129,12 @@ if df_k is not None:
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
         # --- KALKULACIJA ---
         br_r, br_g = 0, 0
+        tr_p = pd.DataFrame()
         if not df_l.empty:
             tr = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
             tr_p = tr[tr['Akcija'] == 'DOLAZAK']
             br_r, br_g = len(tr_p), tr_p['Gradiliste'].nunique()
         
-        # PRORAČUN DANAŠNJEG TROŠKA (Dnevnice + Računi)
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
         trosak_dnevnice = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
@@ -141,6 +150,7 @@ if df_k is not None:
         
         with tabs[0]: # DANAS
             st.metric("Aktivno", br_r)
+            st.subheader("Pregled aktivnosti za danas")
             if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih.")
             df_danas = df_l[df_l['Vreme'].str.contains(danas_dt)].copy() if not df_l.empty else pd.DataFrame()
