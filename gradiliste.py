@@ -20,6 +20,10 @@ cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready():
     st.stop()
 
+# --- INICIJALIZACIJA STANJA ---
+if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
+if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
+
 # --- STILIZACIJA (CSS) ---
 st.markdown("""
     <style>
@@ -38,8 +42,7 @@ st.markdown("""
     .label-radnik { font-size: 16px; color: #BBB; }
     .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
     
-    /* NASLOV 28px */
-    .glavni-naslov { font-size: 28px; font-weight: bold; margin-left: 10px; display: inline-block; vertical-align: middle; }
+    .glavni-naslov { font-size: 28px; font-weight: bold; margin-top: 20px; display: inline-block; }
     
     .admin-naslov { font-size: 28px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 10px; padding: 10px; }
     .trosak-box { font-size: 22px; font-weight: bold; color: #FF4B4B; padding: 5px 15px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
@@ -50,7 +53,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- POVEZIVANJE SA GOOGLE ---
+# --- GOOGLE SHEETS FUNKCIJE ---
 def povezi_google():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -80,8 +83,6 @@ def obracunaj_sate_i_dane(df):
     if df.empty or 'Vreme' not in df.columns: return pd.DataFrame(), pd.DataFrame()
     df['V_DT'] = pd.to_datetime(df['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
     df = df.dropna(subset=['V_DT']).sort_values(['Radnik', 'V_DT'])
-    
-    # Naziv meseca za grupisanje
     df['Mesec'] = df['V_DT'].dt.month.map(MESECI_SR) + " " + df['V_DT'].dt.year.astype(str)
     
     sati = []
@@ -96,7 +97,6 @@ def obracunaj_sate_i_dane(df):
                 dv = None
     
     df_sati = pd.DataFrame(sati, columns=["Radnik", "Mesec", "Sekunde"])
-    # Bitno: Koristimo ime kolone 'Mesec'
     df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
     return df_sati, df_dani
 
@@ -107,7 +107,6 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
-        # --- ADMIN OKRUŽENJE ---
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
@@ -124,17 +123,15 @@ if df_k is not None:
         st.markdown(f"<div class='admin-naslov'>📊 Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"trenutno na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; današnji trošak: {u_t_danas:,.0f} RSD"
         st.markdown(f'<div class="ticker-wrap"><div class="ticker-text">{vest} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {vest}</div></div>', unsafe_allow_html=True)
-
         tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
-        # (Admin tabovi ostaju isti...)
         st.stop()
 
     # --- RADNIČKO OKRUŽENJE ---
-    # LOGO I NASLOV
-    col_logo, col_txt = st.columns([1, 8])
+    # LOGO (90px) I NASLOV
+    col_logo, col_txt = st.columns([1, 5])
     with col_logo:
         if os.path.exists("logo.png"):
-            st.image("logo.png", width=60)
+            st.image("logo.png", width=90) # Povećano na 90px
     with col_txt:
         st.markdown("<div class='glavni-naslov'>Digitalna prijava</div>", unsafe_allow_html=True)
     
@@ -158,7 +155,6 @@ if df_k is not None:
                         cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
     else:
         if st.session_state.get('unos_troska', False):
-            # (Unos troška ostaje isti...)
             st.subheader("💰 Unos troška")
             if st.button("⬅️ Nazad"): st.session_state.unos_troska = False; st.rerun()
             kat = st.selectbox("Kategorija:", ["GORIVO", "HRANA", "MATERIJAL", "DRUGO"])
@@ -178,7 +174,6 @@ if df_k is not None:
             l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist() if not df_g.empty else ["Nema"]
             def_idx = l_g.index(posl_g) if posl_g in l_g else 0
             izbor = st.selectbox("🚩 gde se nalazite trenutno?", l_g, index=def_idx)
-            
             st.write("---")
             v_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             
@@ -197,7 +192,7 @@ if df_k is not None:
             if st.button("💰 DODAJ TROŠAK"): st.session_state.unos_troska = True; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # --- FIKSIRAN PREGLED DNEVNICA ZA RADNIKA ---
+            # --- FIKSIRAN PREGLED DNEVNICA ---
             st.write("---")
             with st.expander("📊 Moja evidencija rada"):
                 if not df_l.empty:
@@ -205,7 +200,6 @@ if df_k is not None:
                     m_radnika = df_dani_radnik[df_dani_radnik['Radnik'] == p_ime]
                     if not m_radnika.empty:
                         tekuci_m_ime = MESECI_SR[datetime.now().month] + " " + str(datetime.now().year)
-                        # Provera u koloni 'Mesec' (ne Mesec_Ime više)
                         d_sad = m_radnika[m_radnika['Mesec'] == tekuci_m_ime]
                         b_d_sad = d_sad['Radni Dani'].values[0] if not d_sad.empty else 0
                         st.info(f"📅 U mesecu **{tekuci_m_ime}** imate: **{b_d_sad} radnih dana**")
