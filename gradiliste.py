@@ -26,23 +26,35 @@ DANI_SR = {'Monday': 'Pon', 'Tuesday': 'Uto', 'Wednesday': 'Sre', 'Thursday': '�
 if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
 if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 
-# --- 5. STILIZACIJA (CSS) ---
+# --- 5. STILIZACIJA (POPRAVLJEN CSS - VRAĆENA STRELICA) ---
 st.markdown(f"""
     <style>
-    .main .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; }}
-    header {{ visibility: hidden; }}
+    /* SMANJENJE PROSTORA NA VRHU */
+    .main .block-container {{ 
+        padding-top: 1rem !important; 
+        padding-bottom: 1rem !important; 
+    }}
+    
+    /* SAKRIVA SAMO DESNI MENI (TRI TAČKICE), ALI OSTAVLJA SIDEBAR STRELICU */
+    #MainMenu {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+    
     @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
+    
     .vega-actions {{ display: none !important; }}
     .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #000; padding: 6px 0; margin-bottom: 25px; border-radius: 6px; border: 1.5px solid #0087bf; }}
     .ticker-text {{ display: inline-block; white-space: nowrap; font-size: 16px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }}
+    
     .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .trosak-dugme-plavo > div > button {{ height: 70px !important; font-size: 20px !important; color: white !important; background-color: #0087bf !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; border:none !important; }}
     .onemoguceno-dugme > div > button {{ height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }}
+    
     .label-radnik {{ font-size: 16px; color: #BBB; }}
     .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
+    .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 10px; color: #0087bf; display: inline-block; }}
     .admin-naslov {{ font-size: 28px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 10px; padding: 10px; color: #FFF; background-color: #15468b; border-radius: 8px; }}
     .trosak-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #dc3545; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
     .trosak-mesec-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #0087bf; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
@@ -83,8 +95,7 @@ def oboji_dnevnik(row):
     styles = [''] * len(row)
     if 'Vreme' in row.index and danas in str(row['Vreme']):
         for i, col in enumerate(row.index):
-            if col == 'Br.': 
-                styles[i] = 'color: #0087bf; font-weight: bold;'
+            if col == 'Br.': styles[i] = 'color: #0087bf; font-weight: bold;'
             elif 'Akcija' in row.index:
                 if row['Akcija'] == 'DOLAZAK': styles[i] = 'background-color: rgba(40, 167, 69, 0.2); color: #28a745'
                 elif row['Akcija'] == 'ODLAZAK': styles[i] = 'background-color: rgba(220, 53, 69, 0.2); color: #dc3545'
@@ -133,6 +144,7 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
+        # --- ADMIN OKRUŽENJE ---
         prikazi_grafik_nizak(df_l)
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
@@ -143,9 +155,9 @@ if df_k is not None:
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
-        t_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
-        t_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
-        u_t_danas = t_d + t_r
+        trosak_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
+        trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
+        u_t_danas = trosak_d + trosak_r
 
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; trošak: {u_t_danas:,.0f} RSD"
@@ -153,7 +165,7 @@ if df_k is not None:
         
         tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
-        with tabs[0]: # TAB DANAS
+        with tabs[0]: # DANAS
             st.metric("Aktivno", br_r)
             if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih radnika.")
@@ -163,7 +175,7 @@ if df_k is not None:
                     df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                     st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
 
-        with tabs[1]: # TAB RADNICI
+        with tabs[1]: # RADNICI
             if not st.session_state.get('uredjivanje_cene', False):
                 if not df_k.empty:
                     p_k = df_k.copy()
@@ -190,20 +202,19 @@ if df_k is not None:
                     cell = ws.find(r_sel); ws.update_cell(cell.row, 3, n_c)
                     st.cache_data.clear(); st.session_state.uredjivanje_cene = False; st.rerun()
 
-        with tabs[2]: # TAB DNEVNIK
+        with tabs[2]: # DNEVNIK
             if not df_l.empty:
                 df_p = df_l.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                 st.dataframe(df_p.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
-            else: st.info("Dnevnik je prazan.")
 
-        with tabs[3]: # TAB DNEVNICE
+        with tabs[3]: # DNEVNICE
             if not df_l.empty:
                 _, d_stat = obracunaj_sate_i_dane(df_l)
                 if not d_stat.empty:
                     m_sel = st.selectbox("Izaberi mesec:", d_stat['Mesec'].unique())
                     st.table(d_stat[d_stat['Mesec'] == m_sel][['Radnik', 'Radni Dani']])
 
-        with tabs[4]: # TAB GRADILIŠTA
+        with tabs[4]: # GRADILIŠTA
             n_g = st.text_input("Naziv novog gradilišta:")
             if st.button("Dodaj gradilište"): 
                 if n_g: dodaj_u_tabelu("gradilista", [n_g]); st.cache_data.clear(); st.rerun()
@@ -215,7 +226,7 @@ if df_k is not None:
                     st.dataframe(pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left').fillna(0)[['Naziv', 'Ukupno Prijave']], use_container_width=True)
                 else: st.dataframe(df_g, use_container_width=True)
 
-        with tabs[5]: # TAB TROŠKOVI
+        with tabs[5]: # TROŠKOVI
             if not df_t.empty:
                 st.dataframe(df_t.iloc[::-1], use_container_width=True)
                 st.metric("Ukupno RSD", f"{df_t['Iznos'].astype(float).sum():,.0f}")
