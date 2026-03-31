@@ -111,7 +111,8 @@ def obracunaj_sate_i_dane(df):
     df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
     return df_sati, df_dani
 
-def prikazi_grafik_nizak(df):
+# --- 8. FUNKCIJA ZA GRAFIK (Nizak 100px, samo za Admina) ---
+def prikazi_grafik_admin(df):
     if df.empty: return
     try:
         df_plot = df[df['Akcija'] == 'DOLAZAK'].copy()
@@ -134,12 +135,14 @@ def prikazi_grafik_nizak(df):
 df_l, df_k, df_g, df_t = ucitaj_podatke()
 
 if df_k is not None:
-    prikazi_grafik_nizak(df_l)
-
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
-        # PRORAČUN
+        # --- ADMIN OKRUŽENJE ---
+        
+        # 1. GRAFIK NA VRHU ADMIN PANELA
+        prikazi_grafik_admin(df_l)
+
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
@@ -149,13 +152,11 @@ if df_k is not None:
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
-        trosak_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
-        trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
-        u_t_danas = trosak_d + trosak_r
+        t_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
+        t_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
+        u_t_danas = t_d + t_r
 
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
-        
-        # --- IZMENA TICKER TEKSTA ---
         vest = f"na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; trošak: {u_t_danas:,.0f} RSD"
         st.markdown(f'<div class="ticker-wrap"><div class="ticker-text">{vest} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {vest}</div></div>', unsafe_allow_html=True)
         
