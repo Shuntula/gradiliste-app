@@ -24,31 +24,73 @@ MESECI_SR = {
 if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
 if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 
-# --- 5. STILIZACIJA (CSS) ---
-st.markdown("""
+# --- 5. STILIZACIJA (BOJE LOGOTIPA: #15468b i #0087bf) ---
+st.markdown(f"""
     <style>
-    @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); } 70% { box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); } 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); } }
-    @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); } 70% { box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); } 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); } }
-    @keyframes ticker { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+    /* Animacije za pulsiranje */
+    @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
+    @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
+    @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
     
-    .ticker-wrap { width: 100%; overflow: hidden; background-color: #111; padding: 10px 0; margin-bottom: 30px; border-radius: 5px; border: 1px solid #333; }
-    .ticker-text { display: inline-block; white-space: nowrap; font-size: 18px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }
+    /* POKRETNA TRAKA - Tamno plava pozadina #15468b */
+    .ticker-wrap {{ 
+        width: 100%; overflow: hidden; background-color: #15468b; padding: 12px 0; 
+        margin-bottom: 30px; border-radius: 8px; border: 1px solid #0087bf; 
+    }}
+    .ticker-text {{ 
+        display: inline-block; white-space: nowrap; font-size: 18px; font-weight: bold; 
+        color: #FFFFFF; animation: ticker 30s linear infinite; 
+    }}
     
-    .trepcuce-dugme > div > button { height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }
-    .odjava-dugme > div > button { height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }
-    .trosak-dugme-plavo > div > button { height: 70px !important; font-size: 20px !important; color: white !important; background-color: #007bff !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; }
-    .onemoguceno-dugme > div > button { height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }
+    /* Dugme PRIJAVA - Zeleno sa plavim tonom senke */
+    .trepcuce-dugme > div > button {{ 
+        height: 100px !important; font-size: 24px !important; font-weight: bold !important; 
+        color: white !important; background-color: #28a745 !important; 
+        animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; 
+    }}
     
-    .label-radnik { font-size: 16px; color: #BBB; }
-    .ime-radnika { font-size: 28px; font-weight: bold; color: #FFF; }
-    .glavni-naslov { font-size: 28px; font-weight: bold; margin-top: 20px; display: inline-block; }
-    .admin-naslov { font-size: 28px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 10px; padding: 10px; }
+    /* Dugme ODJAVA - Crveno */
+    .odjava-dugme > div > button {{ 
+        height: 100px !important; font-size: 24px !important; font-weight: bold !important; 
+        color: white !important; background-color: #dc3545 !important; 
+        animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; 
+    }}
     
-    .trosak-box { font-size: 22px; font-weight: bold; color: #FF4B4B; padding: 5px 15px; border: 2px solid #FF4B4B; border-radius: 10px; display: inline-block; }
-    .trosak-mesec-box { font-size: 22px; font-weight: bold; color: #FFA500; padding: 5px 15px; border: 2px solid #FFA500; border-radius: 10px; display: inline-block; }
-    .centriran-tekst { text-align: center; width: 100%; margin: 20px 0; }
-    .diskretno-dugme { display: flex; justify-content: center; width: 100%; margin-top: 60px !important; }
-    .diskretno-dugme > div > button { font-size: 13px !important; color: #888 !important; background-color: transparent !important; border: 1px solid #444 !important; padding: 5px 15px !important; opacity: 0.7; }
+    /* Dugme DODAJ TROŠAK - Svetlo plava #0087bf */
+    .trosak-dugme-plavo > div > button {{ 
+        height: 70px !important; font-size: 20px !important; font-weight: bold !important; 
+        color: white !important; background-color: #0087bf !important; 
+        border: none !important; border-radius: 15px !important; width: 100% !important; 
+        margin-top: 10px !important; transition: 0.3s;
+    }}
+    .trosak-dugme-plavo > div > button:hover {{ background-color: #15468b !important; }}
+
+    /* Onemogućeno dugme */
+    .onemoguceno-dugme > div > button {{ 
+        height: 100px !important; background-color: #262730 !important; 
+        color: #555 !important; border: 1px solid #444 !important; 
+        border-radius: 15px !important; width: 100% !important; pointer-events: none !important; 
+    }}
+    
+    /* Fontovi za radnika */
+    .label-radnik {{ font-size: 16px; color: #BBB; }}
+    .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
+    .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 20px; color: #0087bf; display: inline-block; }}
+    
+    /* ADMIN NASLOV - Tamno plava #15468b */
+    .admin-naslov {{ 
+        font-size: 28px; font-weight: bold; text-align: center; width: 100%; 
+        margin-bottom: 10px; padding: 10px; color: #FFF; background-color: #15468b;
+        border-radius: 8px;
+    }}
+    
+    /* Trošak boxovi */
+    .trosak-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #dc3545; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
+    .trosak-mesec-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #0087bf; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
+    .centriran-tekst {{ text-align: center; width: 100%; margin: 20px 0; }}
+    
+    .diskretno-dugme {{ display: flex; justify-content: center; width: 100%; margin-top: 60px !important; }}
+    .diskretno-dugme > div > button {{ font-size: 13px !important; color: #0087bf !important; background-color: transparent !important; border: 1px solid #0087bf !important; padding: 5px 15px !important; opacity: 0.8; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -83,10 +125,10 @@ def oboji_dnevnik(row):
     styles = [''] * len(row)
     if 'Vreme' in row.index and danas in str(row['Vreme']):
         for i, col in enumerate(row.index):
-            if col == 'Br.': styles[i] = 'color: #007bff; font-weight: bold;'
+            if col == 'Br.': styles[i] = 'color: #0087bf; font-weight: bold;'
             elif 'Akcija' in row.index:
-                if row['Akcija'] == 'DOLAZAK': styles[i] = 'background-color: #c3e6cb; color: #155724'
-                elif row['Akcija'] == 'ODLAZAK': styles[i] = 'background-color: #f5c6cb; color: #721c24'
+                if row['Akcija'] == 'DOLAZAK': styles[i] = 'background-color: rgba(40, 167, 69, 0.2); color: #28a745'
+                elif row['Akcija'] == 'ODLAZAK': styles[i] = 'background-color: rgba(220, 53, 69, 0.2); color: #dc3545'
     return styles
 
 def obracunaj_sate_i_dane(df):
@@ -115,7 +157,6 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
-        # PRORAČUN ADMIN PODATAKA
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
@@ -129,8 +170,7 @@ if df_k is not None:
         trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
         u_t_danas = trosak_d + trosak_r
 
-        # NASLOV I POKRETNA TRAKA
-        st.markdown(f"<div class='admin-naslov'>📊 Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"trenutno na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; današnji trošak: {u_t_danas:,.0f} RSD"
         st.markdown(f'<div class="ticker-wrap"><div class="ticker-text">{vest} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {vest}</div></div>', unsafe_allow_html=True)
 
@@ -170,8 +210,7 @@ if df_k is not None:
                 if st.button("⬅️ Nazad"): st.session_state.uredjivanje_cene = False; st.rerun()
                 r_sel = st.selectbox("Radnik:", df_k['Ime'].tolist()); n_c = st.number_input("Nova cena:", step=100)
                 if st.button("Sačuvaj"): 
-                    client = povezi_google()
-                    ws = client.open("Baza Gradiliste").worksheet("korisnici")
+                    client = povezi_google(); ws = client.open("Baza Gradiliste").worksheet("korisnici")
                     cell = ws.find(r_sel)
                     if cell: ws.update_cell(cell.row, 3, n_c)
                     st.cache_data.clear(); st.session_state.uredjivanje_cene = False; st.rerun()
@@ -181,13 +220,6 @@ if df_k is not None:
                 df_p = df_l.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                 st.dataframe(df_p.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
         
-        with tabs[3]: # DNEVNICE
-            if not df_l.empty:
-                _, d_stat = obracunaj_sate_i_dane(df_l)
-                if not d_stat.empty:
-                    m_sel = st.selectbox("Mesec:", d_stat['Mesec'].unique())
-                    st.table(d_stat[d_stat['Mesec'] == m_sel][['Radnik', 'Radni Dani']])
-
         with tabs[4]: # GRADILIŠTA
             n_g = st.text_input("Naziv gradilišta:")
             if st.button("Dodaj"): 
@@ -199,11 +231,6 @@ if df_k is not None:
                     stat_g = dolasci.drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum']).groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
                     st.dataframe(pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left').fillna(0)[['Naziv', 'Ukupno Prijave']], use_container_width=True)
                 else: st.dataframe(df_g, use_container_width=True)
-
-        with tabs[5]: # TROŠKOVI
-            if not df_t.empty:
-                st.dataframe(df_t.iloc[::-1], use_container_width=True)
-                st.metric("Ukupno RSD", f"{df_t['Iznos'].astype(float).sum():,.0f}")
         st.stop()
 
     # --- RADNIČKO OKRUŽENJE ---
@@ -213,8 +240,7 @@ if df_k is not None:
     with col_txt:
         st.markdown("<div class='glavni-naslov'>Digitalna prijava</div>", unsafe_allow_html=True)
     
-    p_ime = None
-    e_cookie = cookies.get("radnik_email")
+    p_ime = None; e_cookie = cookies.get("radnik_email")
     if e_cookie and not df_k.empty:
         match = df_k[df_k['Email'] == e_cookie]
         if not match.empty: p_ime = match.iloc[0]['Ime']
@@ -247,10 +273,12 @@ if df_k is not None:
             if not df_l.empty:
                 r_l = df_l[df_l['Radnik'] == p_ime]
                 if not r_l.empty: status, posl_g = r_l.iloc[-1]['Akcija'], r_l.iloc[-1]['Gradiliste']
+            
             st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{p_ime}</span>", unsafe_allow_html=True)
             l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist() if not df_g.empty else ["Nema"]
             def_idx = l_g.index(posl_g) if posl_g in l_g else 0
             izbor = st.selectbox("🚩 gde se nalazite trenutno?", l_g, index=def_idx)
+            
             st.write("---")
             v_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
             if status == "ODLAZAK":
@@ -263,6 +291,7 @@ if df_k is not None:
                 st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
                 if st.button("🛑 ODJAVI SE SA POSLA"): dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, v_sad]); st.cache_data.clear(); st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
+            
             st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
             if st.button("💰 DODAJ TROŠAK"): st.session_state.unos_troska = True; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -277,7 +306,8 @@ if df_k is not None:
                         d_sad = m_radnika[m_radnika['Mesec'] == tekuci_m_ime]
                         b_d_sad = d_sad['Radni Dani'].values[0] if not d_sad.empty else 0
                         st.info(f"📅 U mesecu **{tekuci_m_ime}** imate: **{b_d_sad} radnih dana**")
-                        iz_m = st.selectbox("Istorija meseci:", m_radnika['Mesec'].unique(), index=len(m_radnika['Mesec'].unique())-1)
+                        iz_m = st.selectbox("Istorija:", m_radnika['Mesec'].unique(), index=len(m_radnika['Mesec'].unique())-1)
                         st.write(f"U mesecu **{iz_m}** imali ste: **{m_radnika[m_radnika['Mesec'] == iz_m]['Radni Dani'].values[0]} dana**.")
+
         st.write("---")
         if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
