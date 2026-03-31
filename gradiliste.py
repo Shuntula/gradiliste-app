@@ -27,64 +27,64 @@ if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 # --- 5. STILIZACIJA (BOJE LOGOTIPA: #15468b i #0087bf) ---
 st.markdown(f"""
     <style>
-    /* Animacije za pulsiranje */
     @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
     
-    /* POKRETNA TRAKA - Tamno plava pozadina #15468b */
+    /* POKRETNA TRAKA - Tekst vraćen na ZELENU boju */
     .ticker-wrap {{ 
         width: 100%; overflow: hidden; background-color: #15468b; padding: 12px 0; 
         margin-bottom: 30px; border-radius: 8px; border: 1px solid #0087bf; 
     }}
     .ticker-text {{ 
         display: inline-block; white-space: nowrap; font-size: 18px; font-weight: bold; 
-        color: #FFFFFF; animation: ticker 30s linear infinite; 
+        color: #28a745; animation: ticker 30s linear infinite; 
     }}
     
-    /* Dugme PRIJAVA - Zeleno sa plavim tonom senke */
+    /* Dugme PRIJAVA - Pulsirajuće zeleno */
     .trepcuce-dugme > div > button {{ 
         height: 100px !important; font-size: 24px !important; font-weight: bold !important; 
         color: white !important; background-color: #28a745 !important; 
-        animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; 
+        animation: pulse-green 2s infinite; border: none !important; border-radius: 15px !important; width: 100% !important; 
     }}
     
-    /* Dugme ODJAVA - Crveno */
+    /* Dugme ODJAVA - Pulsirajuće crveno */
     .odjava-dugme > div > button {{ 
         height: 100px !important; font-size: 24px !important; font-weight: bold !important; 
         color: white !important; background-color: #dc3545 !important; 
-        animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; 
+        animation: pulse-red 2s infinite; border: none !important; border-radius: 15px !important; width: 100% !important; 
     }}
     
-    /* Dugme DODAJ TROŠAK - Svetlo plava #0087bf */
+    /* FIKSIRANO Dugme DODAJ TROŠAK - Svetlo plava #0087bf */
+    div.stButton > button:first-child[kind="secondary"] {{
+        background-color: #0087bf !important;
+        color: white !important;
+        border: none !important;
+    }}
+    
     .trosak-dugme-plavo > div > button {{ 
         height: 70px !important; font-size: 20px !important; font-weight: bold !important; 
         color: white !important; background-color: #0087bf !important; 
         border: none !important; border-radius: 15px !important; width: 100% !important; 
-        margin-top: 10px !important; transition: 0.3s;
+        margin-top: 10px !important; 
     }}
-    .trosak-dugme-plavo > div > button:hover {{ background-color: #15468b !important; }}
 
-    /* Onemogućeno dugme */
     .onemoguceno-dugme > div > button {{ 
         height: 100px !important; background-color: #262730 !important; 
         color: #555 !important; border: 1px solid #444 !important; 
         border-radius: 15px !important; width: 100% !important; pointer-events: none !important; 
     }}
     
-    /* Fontovi za radnika */
     .label-radnik {{ font-size: 16px; color: #BBB; }}
     .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
     .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 20px; color: #0087bf; display: inline-block; }}
     
-    /* ADMIN NASLOV - Tamno plava #15468b */
     .admin-naslov {{ 
         font-size: 28px; font-weight: bold; text-align: center; width: 100%; 
         margin-bottom: 10px; padding: 10px; color: #FFF; background-color: #15468b;
         border-radius: 8px;
     }}
     
-    /* Trošak boxovi */
     .trosak-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #dc3545; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
     .trosak-mesec-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #0087bf; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
     .centriran-tekst {{ text-align: center; width: 100%; margin: 20px 0; }}
@@ -150,7 +150,7 @@ def obracunaj_sate_i_dane(df):
     df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
     return df_sati, df_dani
 
-# --- 8. GLAVNI PROGRAM ---
+# --- 8. PROGRAM ---
 df_l, df_k, df_g, df_t = ucitaj_podatke()
 
 if df_k is not None:
@@ -166,28 +166,18 @@ if df_k is not None:
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
-        trosak_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
-        trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
-        u_t_danas = trosak_d + trosak_r
+        t_dnevnice = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
+        t_racuni = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
+        u_t_danas = t_dnevnice + t_racuni
 
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"trenutno na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; današnji trošak: {u_t_danas:,.0f} RSD"
         st.markdown(f'<div class="ticker-wrap"><div class="ticker-text">{vest} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {vest}</div></div>', unsafe_allow_html=True)
-
         tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
-        with tabs[0]: # DANAS
-            st.metric("Aktivno", br_r)
-            if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
-            else: st.info("Nema prijavljenih radnika.")
-            if not df_l.empty:
-                df_danas = df_l[df_l['Vreme'].str.contains(danas_dt)].copy()
-                if not df_danas.empty:
-                    df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
-                    st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
-
-        with tabs[1]: # RADNICI
+        with tabs[1]: # RADNICI (Troškovi)
             if not st.session_state.get('uredjivanje_cene', False):
+                st.subheader("Lista radnika")
                 if not df_k.empty:
                     p_k = df_k.copy()
                     if 'Email' in p_k.columns: p_k = p_k.drop(columns=['Email'])
@@ -195,14 +185,12 @@ if df_k is not None:
                     tekuci_m_ime = MESECI_SR[datetime.now().month] + " " + str(datetime.now().year)
                     t_mesec = 0
                     if not df_k.empty and 'Cena' in df_k.columns:
-                        cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
+                        c_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
                         _, df_stat_dani = obracunaj_sate_i_dane(df_l)
                         if not df_stat_dani.empty:
                             te_m = df_stat_dani[df_stat_dani['Mesec'] == tekuci_m_ime]
-                            for _, row in te_m.iterrows(): t_mesec += row['Radni Dani'] * float(cene_dict.get(row['Radnik'], 0))
-                    
-                    st.markdown(f"<div class='centriran-tekst'><p style='margin-bottom:5px;'>Troškovi za danas:</p><span class='trosak-box'>{u_t_danas:,.0f} RSD</span></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='centriran-tekst'><p style='margin-bottom:5px;'>Troškovi u tekućem mesecu:</p><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></div>", unsafe_allow_html=True)
+                            for _, row in te_m.iterrows(): t_mesec += row['Radni Dani'] * float(c_dict.get(row['Radnik'], 0))
+                    st.markdown(f"<div class='centriran-tekst'><p>Danas: <span class='trosak-box'>{u_t_danas:,.0f} RSD</span></p><p>Mesec: <span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     st.markdown('<div class="diskretno-dugme">', unsafe_allow_html=True)
                     if st.button("📝 Uredi cenu dnevnice"): st.session_state.uredjivanje_cene = True; st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -214,26 +202,9 @@ if df_k is not None:
                     cell = ws.find(r_sel)
                     if cell: ws.update_cell(cell.row, 3, n_c)
                     st.cache_data.clear(); st.session_state.uredjivanje_cene = False; st.rerun()
-
-        with tabs[2]: # DNEVNIK
-            if not df_l.empty:
-                df_p = df_l.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
-                st.dataframe(df_p.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
-        
-        with tabs[4]: # GRADILIŠTA
-            n_g = st.text_input("Naziv gradilišta:")
-            if st.button("Dodaj"): 
-                if n_g: dodaj_u_tabelu("gradilista", [n_g]); st.cache_data.clear(); st.rerun()
-            if not df_g.empty:
-                if not df_l.empty:
-                    dolasci = df_l[df_l['Akcija'] == 'DOLAZAK'].copy()
-                    dolasci['Datum'] = dolasci['Vreme'].str.slice(0,10)
-                    stat_g = dolasci.drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum']).groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
-                    st.dataframe(pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left').fillna(0)[['Naziv', 'Ukupno Prijave']], use_container_width=True)
-                else: st.dataframe(df_g, use_container_width=True)
         st.stop()
 
-    # --- RADNIČKO OKRUŽENJE ---
+    # --- RADNIK ---
     col_logo, col_txt = st.columns([1, 5])
     with col_logo:
         if os.path.exists("logo.png"): st.image("logo.png", width=90)
@@ -292,22 +263,10 @@ if df_k is not None:
                 if st.button("🛑 ODJAVI SE SA POSLA"): dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, v_sad]); st.cache_data.clear(); st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
             
+            # PLAVO DUGME ZA TROŠAK
             st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
             if st.button("💰 DODAJ TROŠAK"): st.session_state.unos_troska = True; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
-
-            st.write("---")
-            with st.expander("📊 Moja evidencija rada"):
-                if not df_l.empty:
-                    _, df_dani_radnik = obracunaj_sate_i_dane(df_l)
-                    m_radnika = df_dani_radnik[df_dani_radnik['Radnik'] == p_ime]
-                    if not m_radnika.empty:
-                        tekuci_m_ime = MESECI_SR[datetime.now().month] + " " + str(datetime.now().year)
-                        d_sad = m_radnika[m_radnika['Mesec'] == tekuci_m_ime]
-                        b_d_sad = d_sad['Radni Dani'].values[0] if not d_sad.empty else 0
-                        st.info(f"📅 U mesecu **{tekuci_m_ime}** imate: **{b_d_sad} radnih dana**")
-                        iz_m = st.selectbox("Istorija:", m_radnika['Mesec'].unique(), index=len(m_radnika['Mesec'].unique())-1)
-                        st.write(f"U mesecu **{iz_m}** imali ste: **{m_radnika[m_radnika['Mesec'] == iz_m]['Radni Dani'].values[0]} dana**.")
 
         st.write("---")
         if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
