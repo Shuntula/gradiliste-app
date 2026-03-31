@@ -4,7 +4,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import os
-import altair as alt # Potrebno za napredni grafik
+import altair as alt
 from streamlit_cookies_manager import EncryptedCookieManager
 
 # --- 1. KONFIGURACIJA STRANICE ---
@@ -111,58 +111,48 @@ def obracunaj_sate_i_dane(df):
     df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
     return df_sati, df_dani
 
-# --- 8. SPECIJALNI GRAFIK (BEZ TEKSTA SA ZELENOM TAČKOM) ---
-def prikazi_grafik_napredni(df):
+# --- 8. GRAFIK (VISINA 120px, VERTIKALNA OSA VIDLJIVA) ---
+def prikazi_grafik_v120(df):
     if df.empty: return
     try:
-        # Priprema
         df_plot = df[df['Akcija'] == 'DOLAZAK'].copy()
         df_plot['V_DT'] = pd.to_datetime(df_plot['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
         df_plot = df_plot.dropna(subset=['V_DT'])
         df_plot['Datum'] = df_plot['V_DT'].dt.date
         
-        # Zadnjih 7 dana
         danas_obj = datetime.now().date()
         sedam_dana_pre = danas_obj - timedelta(days=6)
         
-        # Generišemo sve datume u nizu da grafik ne bi imao rupe
         idx = pd.date_range(sedam_dana_pre, danas_obj)
         sve_dnevne = df_plot.groupby('Datum')['Radnik'].nunique().reindex(idx, fill_value=0).reset_index()
         sve_dnevne.columns = ['Datum', 'Radnici']
         sve_dnevne['Danas'] = sve_dnevne['Datum'].dt.date == danas_obj
 
-        # Altair grafik
-        base = alt.Chart(sve_dnevne).encode(
-            x=alt.X('Datum:T', axis=None) # Sakriva celu X osu (tekst, linije, naslov)
-        )
+        # Altair konfiguracija
+        base = alt.Chart(sve_dnevne).encode(x=alt.X('Datum:T', axis=None))
 
         line = base.mark_line(color='#0087bf', strokeWidth=3).encode(
-            y=alt.Y('Radnici:Q', axis=None) # Sakriva i Y osu radi čistoće
+            y=alt.Y('Radnici:Q', title=None, axis=alt.Axis(tickMinStep=1))
         )
 
-        # Zelena tačka samo za danas
-        point = base.mark_point(
-            filled=True, size=100, color='#28a745'
-        ).transform_filter(
+        point = base.mark_point(filled=True, size=80, color='#28a745').transform_filter(
             alt.datum.Danas == True
-        ).encode(
-            y='Radnici:Q'
-        )
+        ).encode(y='Radnici:Q')
 
-        st.altair_chart(line + point, use_container_width=True)
+        st.altair_chart(line + point, use_container_width=True, theme=None)
     except: pass
 
 # --- 9. PROGRAM ---
 df_l, df_k, df_g, df_t = ucitaj_podatke()
 
 if df_k is not None:
-    # PRIKAZ NAPREDNOG GRAFIKA
-    st.write("") # Razmak na vrhu
-    prikazi_grafik_napredni(df_l)
+    st.write("") 
+    prikazi_grafik_v120(df_l)
 
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
+        # --- ADMIN OKRUŽENJE ---
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
@@ -172,9 +162,9 @@ if df_k is not None:
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
-        trosak_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
-        trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
-        u_t_danas = trosak_d + trosak_r
+        t_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
+        t_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
+        u_t_danas = t_d + t_r
 
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"trenutno na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; današnji trošak: {u_t_danas:,.0f} RSD"
@@ -183,7 +173,7 @@ if df_k is not None:
         tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
         with tabs[0]: # DANAS
-            st.metric("Aktivno radnika", br_r)
+            st.metric("Aktivno", br_r)
             if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih radnika.")
             if not df_l.empty:
@@ -201,11 +191,11 @@ if df_k is not None:
                     te_m_ime = MESECI_SR[datetime.now().month] + " " + str(datetime.now().year)
                     t_mesec = 0
                     if not df_k.empty and 'Cena' in df_k.columns:
-                        c_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
+                        cene_dict = pd.Series(df_k.Cena.values, index=df_k.Ime).to_dict()
                         _, df_stat_dani = obracunaj_sate_i_dane(df_l)
                         if not df_stat_dani.empty:
                             te_m = df_stat_dani[df_stat_dani['Mesec'] == te_m_ime]
-                            for _, row in te_m.iterrows(): t_mesec += row['Radni Dani'] * float(c_dict.get(row['Radnik'], 0))
+                            for _, row in te_m.iterrows(): t_mesec += row['Radni Dani'] * float(cene_dict.get(row['Radnik'], 0))
                     st.markdown(f"<div class='centriran-tekst'><p>Troškovi za danas:<br><span class='trosak-box'>{u_t_danas:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     st.markdown(f"<div class='centriran-tekst'><p>Troškovi za mesec:<br><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     st.markdown('<div class="diskretno-dugme">', unsafe_allow_html=True)
@@ -216,8 +206,7 @@ if df_k is not None:
                 r_sel = st.selectbox("Radnik:", df_k['Ime'].tolist()); n_c = st.number_input("Nova cena:", step=100)
                 if st.button("Sačuvaj"): 
                     client = povezi_google(); ws = client.open("Baza Gradiliste").worksheet("korisnici")
-                    cell = ws.find(r_sel)
-                    if cell: ws.update_cell(cell.row, 3, n_c)
+                    cell = ws.find(r_sel); ws.update_cell(cell.row, 3, n_c)
                     st.cache_data.clear(); st.session_state.uredjivanje_cene = False; st.rerun()
 
         with tabs[2]: # DNEVNIK
