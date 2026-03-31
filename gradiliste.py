@@ -109,7 +109,7 @@ def obracunaj_sate_i_dane(df):
     df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
     return df_sati, df_dani
 
-# --- 8. FUNKCIJA ZA GRAFIK (SUŽEN I BEZ NASLOVA) ---
+# --- 8. FUNKCIJA ZA GRAFIK (ŠIROK I NIZAK) ---
 def prikazi_grafik(df):
     if df.empty: return
     try:
@@ -118,18 +118,18 @@ def prikazi_grafik(df):
         df_plot = df_plot.dropna(subset=['V_DT'])
         df_plot['Datum'] = df_plot['V_DT'].dt.date
         df_plot = df_plot[df_plot['Datum'] >= (datetime.now().date() - timedelta(days=6))]
-        dnevna_stat = df_plot.groupby('Datum')['Radnik'].nunique().reset_index(name='Broj radnika')
+        dnevna_stat = df_plot.groupby('Datum')['Radnik'].nunique().reset_index(name='Radnici')
         dnevna_stat['Dan'] = pd.to_datetime(dnevna_stat['Datum']).dt.day_name().map(DANI_SR)
         
-        c1, c2, c3 = st.columns([1, 2, 1]) # SUŽAVANJE GRAFIKA
-        with c2:
-            st.line_chart(dnevna_stat.set_index('Dan')['Broj radnika'], color="#0087bf")
+        # Prikaz na punu širinu, visina smanjena na 130px
+        st.line_chart(dnevna_stat.set_index('Dan')['Radnici'], color="#0087bf", height=130, use_container_width=True)
     except: pass
 
 # --- 9. PROGRAM ---
 df_l, df_k, df_g, df_t = ucitaj_podatke()
 
 if df_k is not None:
+    # GRAFIK NA VRHU
     prikazi_grafik(df_l)
 
     st.sidebar.title("🔐 Admin")
@@ -178,8 +178,7 @@ if df_k is not None:
                         if not df_stat_dani.empty:
                             te_m = df_stat_dani[df_stat_dani['Mesec'] == te_m_ime]
                             for _, row in te_m.iterrows(): t_mesec += row['Radni Dani'] * float(c_dict.get(row['Radnik'], 0))
-                    st.markdown(f"<div class='centriran-tekst'><p>Troškovi za danas:<br><span class='trosak-box'>{u_t_danas:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='centriran-tekst'><p>Troškovi za mesec:<br><span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='centriran-tekst'><p>Danas: <span class='trosak-box'>{u_t_danas:,.0f} RSD</span></p><p>Mesec: <span class='trosak-mesec-box'>{t_mesec:,.0f} RSD</span></p></div>", unsafe_allow_html=True)
                     st.markdown('<div class="diskretno-dugme">', unsafe_allow_html=True)
                     if st.button("📝 Uredi cenu dnevnice"): st.session_state.uredjivanje_cene = True; st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
