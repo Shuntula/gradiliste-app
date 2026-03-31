@@ -31,13 +31,20 @@ st.markdown(f"""
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
     
-    .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #15468b; padding: 12px 0; margin-bottom: 30px; border-radius: 8px; border: 1px solid #0087bf; }}
-    .ticker-text {{ display: inline-block; white-space: nowrap; font-size: 18px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }}
+    /* POKRETNA TRAKA - Pozadina promenjena u svetlo plavu #0087bf */
+    .ticker-wrap {{ 
+        width: 100%; overflow: hidden; background-color: #0087bf; padding: 12px 0; 
+        margin-bottom: 30px; border-radius: 8px; border: 1px solid #15468b; 
+    }}
+    .ticker-text {{ 
+        display: inline-block; white-space: nowrap; font-size: 18px; font-weight: bold; 
+        color: #28a745; animation: ticker 30s linear infinite; 
+    }}
     
     .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     
-    /* DUGME DODAJ TROŠAK - Boja logotipa #0087bf */
+    /* DUGME DODAJ TROŠAK */
     .trosak-dugme-plavo > div > button {{ height: 70px !important; font-size: 20px !important; font-weight: bold !important; color: white !important; background-color: #0087bf !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; border:none !important; }}
 
     .onemoguceno-dugme > div > button {{ height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }}
@@ -117,7 +124,6 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
-        # PRORAČUN PODATAKA ZA HEADER I TICKER
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
@@ -131,7 +137,6 @@ if df_k is not None:
         trosak_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
         u_t_danas = trosak_d + trosak_r
 
-        # HEADER I TICKER
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"trenutno na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; današnji trošak: {u_t_danas:,.0f} RSD"
         st.markdown(f'<div class="ticker-wrap"><div class="ticker-text">{vest} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {vest}</div></div>', unsafe_allow_html=True)
@@ -145,8 +150,8 @@ if df_k is not None:
             if not df_l.empty:
                 df_danas = df_l[df_l['Vreme'].str.contains(danas_dt)].copy()
                 if not df_danas.empty:
-                    st.write("Sve današnje aktivnosti:")
-                    st.dataframe(df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'}).style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
+                    df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
+                    st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
 
         with tabs[1]: # KARTICA RADNICI
             if not st.session_state.get('uredjivanje_cene', False):
@@ -181,7 +186,6 @@ if df_k is not None:
             if not df_l.empty:
                 df_p = df_l.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                 st.dataframe(df_p.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
-            else: st.info("Dnevnik je prazan.")
 
         with tabs[3]: # KARTICA DNEVNICE
             if not df_l.empty:
@@ -205,8 +209,7 @@ if df_k is not None:
         with tabs[5]: # KARTICA TROŠKOVI
             if not df_t.empty:
                 st.dataframe(df_t.iloc[::-1], use_container_width=True)
-                st.metric("Ukupno dodatni troškovi", f"{df_t['Iznos'].astype(float).sum():,.0f} RSD")
-            else: st.info("Nema zabeleženih troškova.")
+                st.metric("Ukupno RSD", f"{df_t['Iznos'].astype(float).sum():,.0f}")
         st.stop()
 
     # --- RADNIČKO OKRUŽENJE ---
