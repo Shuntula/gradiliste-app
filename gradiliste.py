@@ -7,40 +7,41 @@ import os
 import altair as alt
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# --- 1. KONFIGURACIJA STRANICE ---
+# --- 1. KONFIGURACIJA (MORA BITI PRVA) ---
 st.set_page_config(page_title="Gradilište Log", page_icon="logo.png", layout="wide")
 
-# --- 2. KOLAČIĆI ---
+# --- 2. KOLAČIĆI (BEZBEDNO UČITAVANJE) ---
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready():
+    st.info("Inicijalizacija sistema... Molimo osvežite stranicu (F5) ako se ništa ne pojavi za 5 sekundi.")
     st.stop()
 
-# --- 3. REČNIK ZA MESECE ---
-MESECI_SR = {
-    1: "januar", 2: "februar", 3: "mart", 4: "april", 5: "maj", 6: "jun",
-    7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar"
-}
-DANI_SR = {'Monday': 'Pon', 'Tuesday': 'Uto', 'Wednesday': 'Sre', 'Thursday': 'Čet', 'Friday': 'Pet', 'Saturday': 'Sub', 'Sunday': 'Ned'}
+# --- 3. REČNIK I STANJA ---
+MESECI_SR = {1: "januar", 2: "februar", 3: "mart", 4: "april", 5: "maj", 6: "jun",
+             7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar"}
 
-# --- 4. INICIJALIZACIJA STANJA ---
 if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
 if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 
-# --- 5. STILIZACIJA (CSS) ---
+# --- 4. STILIZACIJA (BOJE LOGOTIPA: #15468B i #0087BF) ---
 st.markdown(f"""
     <style>
-    .main .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; }}
-    header {{ visibility: hidden; }}
+    .main .block-container {{ padding-top: 1.5rem !important; }}
+    [data-testid="stHeaderActionSet"] {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+    
     @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
-    .vega-actions {{ display: none !important; }}
+    
     .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #000; padding: 6px 0; margin-bottom: 25px; border-radius: 6px; border: 1.5px solid #0087bf; }}
     .ticker-text {{ display: inline-block; white-space: nowrap; font-size: 16px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }}
+    
     .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .trosak-dugme-plavo > div > button {{ height: 70px !important; font-size: 20px !important; color: white !important; background-color: #0087bf !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; border:none !important; }}
     .onemoguceno-dugme > div > button {{ height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }}
+    
     .label-radnik {{ font-size: 16px; color: #BBB; }}
     .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
     .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 10px; color: #0087bf; display: inline-block; }}
@@ -50,10 +51,11 @@ st.markdown(f"""
     .centriran-tekst {{ text-align: center; width: 100%; margin: 20px 0; }}
     .diskretno-dugme {{ display: flex; justify-content: center; width: 100%; margin-top: 60px !important; }}
     .diskretno-dugme > div > button {{ font-size: 13px !important; color: #0087bf !important; background-color: transparent !important; border: 1px solid #0087bf !important; padding: 5px 15px !important; opacity: 0.8; }}
+    .vega-actions {{ display: none !important; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 6. GOOGLE SHEETS FUNKCIJE ---
+# --- 6. GOOGLE SHEETS POVEZIVANJE ---
 def povezi_google():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -66,19 +68,23 @@ def povezi_google():
 def ucitaj_podatke():
     client = povezi_google()
     if not client: return None, None, None, None
-    sh = client.open("Baza Gradiliste")
-    def get_df(name):
-        try:
-            data = sh.worksheet(name).get_all_records()
-            return pd.DataFrame(data) if data else pd.DataFrame()
-        except: return pd.DataFrame()
-    return get_df("log"), get_df("korisnici"), get_df("gradilista"), get_df("troskovi")
+    try:
+        sh = client.open("Baza Gradiliste")
+        def get_df(name):
+            try:
+                data = sh.worksheet(name).get_all_records()
+                return pd.DataFrame(data) if data else pd.DataFrame()
+            except: return pd.DataFrame()
+        return get_df("log"), get_df("korisnici"), get_df("gradilista"), get_df("troskovi")
+    except: return None, None, None, None
 
 def dodaj_u_tabelu(sheet_name, red):
     client = povezi_google()
-    if client: client.open("Baza Gradiliste").worksheet(sheet_name).append_row(red)
+    if client:
+        try: client.open("Baza Gradiliste").worksheet(sheet_name).append_row(red)
+        except: st.error("Neuspešan upis u bazu.")
 
-# --- 7. POMOĆNE FUNKCIJE ---
+# --- 7. ANALITIKA ---
 def oboji_dnevnik(row):
     danas = datetime.now().strftime("%d.%m.%Y")
     styles = [''] * len(row)
@@ -105,9 +111,9 @@ def obracunaj_sate_i_dane(df):
                 diff = (row['V_DT'] - dv).total_seconds()
                 if diff > 0: sati.append([r, row['Mesec'], diff])
                 dv = None
-    df_sati = pd.DataFrame(sati, columns=["Radnik", "Mesec", "Sekunde"])
-    df_dani = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
-    return df_sati, df_dani
+    df_s = pd.DataFrame(sati, columns=["Radnik", "Mesec", "Sekunde"])
+    df_d = df.groupby(['Radnik', 'Mesec'])['Vreme'].apply(lambda x: x.str.slice(0,10).nunique()).reset_index(name='Radni Dani')
+    return df_s, df_d
 
 def prikazi_grafik_nizak(df):
     if df.empty: return
@@ -119,20 +125,20 @@ def prikazi_grafik_nizak(df):
         idx = pd.date_range(datetime.now().date() - timedelta(days=6), datetime.now().date())
         sve_dnevne = df_plot.groupby('Datum')['Radnik'].nunique().reindex(idx, fill_value=0).reset_index()
         sve_dnevne.columns = ['Datum', 'Radnici']
-        sve_dnevne['Danas'] = sve_dnevne['Datum'].dt.date == datetime.now().date()
         base = alt.Chart(sve_dnevne).encode(x=alt.X('Datum:T', axis=None))
         line = base.mark_line(color='#0087bf', strokeWidth=3).encode(y=alt.Y('Radnici:Q', title=None, axis=alt.Axis(tickMinStep=1, grid=False))).properties(height=100)
-        point = base.mark_point(filled=True, size=80, color='#28a745').transform_filter(alt.datum.Danas == True).encode(y='Radnici:Q')
+        point = base.mark_point(filled=True, size=80, color='#28a745').transform_filter(alt.datum.Datum == alt.expr.toDate(datetime.now().date().isoformat())).encode(y='Radnici:Q')
         st.altair_chart((line + point).configure_view(strokeOpacity=0), use_container_width=True)
     except: pass
 
-# --- 9. PROGRAM ---
+# --- 8. GLAVNA LOGIKA ---
 df_l, df_k, df_g, df_t = ucitaj_podatke()
 
 if df_k is not None:
+    # --- ADMIN REŽIM ---
     st.sidebar.title("🔐 Admin")
-    lozinka = st.sidebar.text_input("Lozinka:", type="password")
-    if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
+    admin_loz = st.sidebar.text_input("Lozinka:", type="password")
+    if admin_loz == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
         prikazi_grafik_nizak(df_l)
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
@@ -156,16 +162,11 @@ if df_k is not None:
         tabs = st.tabs(["📅 Danas", "👥 Radnici", "🕒 Dnevnik", "💰 Dnevnice", "🏗️ Gradilišta", "💸 Troškovi"])
         
         with tabs[0]: # DANAS
-            # UKLONJEN ST.METRIC "AKTIVNO"
-            if br_r > 0: 
-                st.write("Trenutno na gradilištima:")
-                st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
-            else: st.info("Nema prijavljenih radnika na gradilištima.")
+            if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
+            else: st.info("Nema prijavljenih radnika.")
             if not df_l.empty:
                 df_danas = df_l[df_l['Vreme'].str.contains(danas_dt)].copy()
                 if not df_danas.empty:
-                    st.divider()
-                    st.write("Sve današnje aktivnosti:")
                     df_p_danas = df_danas.iloc[::-1].reset_index().rename(columns={'index':'Br.'})
                     st.dataframe(df_p_danas.style.apply(oboji_dnevnik, axis=1), use_container_width=True, hide_index=True)
 
@@ -210,3 +211,97 @@ if df_k is not None:
 
         with tabs[4]: # GRADILIŠTA
             n_g = st.text_input("Naziv novog gradilišta:")
+            if st.button("Dodaj gradilište"): 
+                if n_g: dodaj_u_tabelu("gradilista", [n_g]); st.cache_data.clear(); st.rerun()
+            if not df_g.empty:
+                if not df_l.empty:
+                    dolasci = df_l[df_l['Akcija'] == 'DOLAZAK'].copy()
+                    dolasci['Datum'] = dolasci['Vreme'].str.slice(0,10)
+                    stat_g = dolasci.drop_duplicates(subset=['Radnik', 'Gradiliste', 'Datum']).groupby('Gradiliste').size().reset_index(name='Ukupno Prijave')
+                    st.dataframe(pd.merge(df_g, stat_g, left_on='Naziv', right_on='Gradiliste', how='left').fillna(0)[['Naziv', 'Ukupno Prijave']], use_container_width=True)
+                else: st.dataframe(df_g, use_container_width=True)
+
+        with tabs[5]: # TROŠKOVI
+            if not df_t.empty:
+                st.dataframe(df_t.iloc[::-1], use_container_width=True)
+                st.metric("Ukupno RSD", f"{df_t['Iznos'].astype(float).sum():,.0f}")
+        st.stop()
+
+    # --- RADNIČKO OKRUŽENJE ---
+    col_logo, col_txt = st.columns([1, 5])
+    with col_logo:
+        if os.path.exists("logo.png"): st.image("logo.png", width=90)
+    with col_txt:
+        st.markdown("<div class='glavni-naslov'>Digitalna prijava</div>", unsafe_allow_html=True)
+    
+    p_ime = None; e_cookie = cookies.get("radnik_email")
+    if e_cookie and not df_k.empty:
+        match = df_k[df_k['Email'] == e_cookie]
+        if not match.empty: p_ime = match.iloc[0]['Ime']
+
+    if not p_ime:
+        e_in = st.text_input("Email:").strip().lower()
+        if e_in:
+            match = df_k[df_k['Email'] == e_in] if not df_k.empty else pd.DataFrame()
+            if not match.empty:
+                if st.button(f"Prijavi me kao {match.iloc[0]['Ime']}"): cookies["radnik_email"] = e_in; cookies.save(); st.rerun()
+            else:
+                i_in = st.text_input("Ime i Prezime:")
+                if st.button("Registruj me"):
+                    if i_in and e_in:
+                        dodaj_u_tabelu("korisnici", [i_in, e_in, 0]); cookies["radnik_email"] = e_in; cookies.save(); st.cache_data.clear(); st.rerun()
+    else:
+        if st.session_state.get('unos_troska', False):
+            st.subheader("💰 Unos troška")
+            if st.button("⬅️ Nazad"): st.session_state.unos_troska = False; st.rerun()
+            kat = st.selectbox("Kategorija:", ["GORIVO", "HRANA", "MATERIJAL", "DRUGO"])
+            izn = st.number_input("Iznos RSD:", min_value=0, step=50)
+            grad_t = st.selectbox("Gradilište:", df_g['Naziv'].tolist() if not df_g.empty else ["Nema"])
+            if st.button("✅ SAČUVAJ"):
+                if izn > 0:
+                    dodaj_u_tabelu("troskovi", [p_ime, grad_t, kat, izn, datetime.now().strftime("%d.%m.%Y %H:%M:%S")])
+                    st.cache_data.clear(); st.session_state.unos_troska = False; st.rerun()
+        else:
+            status, posl_g = "ODLAZAK", None
+            if not df_l.empty:
+                temp_l = df_l[df_l['Radnik'] == p_ime].copy()
+                temp_l['V_DT_SORT'] = pd.to_datetime(temp_l['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
+                if not temp_l.empty:
+                    poslednji_zapis = temp_l.sort_values('V_DT_SORT').iloc[-1]
+                    status, posl_g = poslednji_zapis['Akcija'], poslednji_zapis['Gradiliste']
+
+            st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{p_ime}</span>", unsafe_allow_html=True)
+            l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist() if not df_g.empty else ["Nema"]
+            def_idx = l_g.index(posl_g) if posl_g in l_g else 0
+            izbor = st.selectbox("🚩 gde se nalazite trenutno?", l_g, index=def_idx)
+            st.write("---")
+            v_sad = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            if status == "ODLAZAK":
+                if izbor == "-- klikni ovde i izaberi gradilište --": st.markdown('<div class="onemoguceno-dugme"><button>IZBOR OBAVEZAN</button></div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="trepcuce-dugme">', unsafe_allow_html=True)
+                    if st.button("✅ PRIJAVI SE NA POSAO"): dodaj_u_tabelu("log", [p_ime, "DOLAZAK", izbor, v_sad]); st.cache_data.clear(); st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="odjava-dugme">', unsafe_allow_html=True)
+                if st.button("🛑 ODJAVI SE SA POSLA"): dodaj_u_tabelu("log", [p_ime, "ODLAZAK", izbor, v_sad]); st.cache_data.clear(); st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('<div class="trosak-dugme-plavo">', unsafe_allow_html=True)
+            if st.button("💰 DODAJ TROŠAK"): st.session_state.unos_troska = True; st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.write("---")
+            with st.expander("📊 Moja evidencija rada"):
+                if not df_l.empty:
+                    _, df_dani_radnik = obracunaj_sate_i_dane(df_l)
+                    m_radnika = df_dani_radnik[df_dani_radnik['Radnik'] == p_ime]
+                    if not m_radnika.empty:
+                        te_m_ime = MESECI_SR[datetime.now().month] + " " + str(datetime.now().year)
+                        d_sad = m_radnika[m_radnika['Mesec'] == te_m_ime]
+                        b_d_sad = d_sad['Radni Dani'].values[0] if not d_sad.empty else 0
+                        st.info(f"📅 U mesecu **{te_m_ime}** imate: **{b_d_sad} radnih dana**")
+                        iz_m = st.selectbox("Istorija:", m_radnika['Mesec'].unique(), index=len(m_radnika['Mesec'].unique())-1)
+                        st.write(f"U mesecu **{iz_m}** imali ste: **{m_radnika[m_radnika['Mesec'] == iz_m]['Radni Dani'].values[0]} dana**.")
+        st.write("---")
+        if st.button("Logout"): del cookies["radnik_email"]; cookies.save(); st.rerun()
+else:
+    st.error("Sistem trenutno nije dostupan. Molimo pokušajte ponovo za par sekundi (F5).")
