@@ -26,32 +26,21 @@ DANI_SR = {'Monday': 'Pon', 'Tuesday': 'Uto', 'Wednesday': 'Sre', 'Thursday': '�
 if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
 if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 
-# --- 5. STILIZACIJA (POPRAVLJEN CSS - VRAĆENA STRELICA) ---
+# --- 5. STILIZACIJA (CSS) ---
 st.markdown(f"""
     <style>
-    /* SMANJENJE PROSTORA NA VRHU I OSTAVLJANJE PROSTORA ZA STRELICU */
-    .main .block-container {{ 
-        padding-top: 2rem !important; 
-        padding-bottom: 1rem !important; 
-    }}
-    
-    /* SAKRIVA SAMO DESNI MENI (TRI TAČKICE) I DEPLOY DUGME */
-    [data-testid="stHeaderActionSet"] {{ visibility: hidden; }}
-    footer {{ visibility: hidden; }}
-    
+    .main .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; }}
+    header {{ visibility: hidden; }}
     @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
-    
     .vega-actions {{ display: none !important; }}
     .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #000; padding: 6px 0; margin-bottom: 25px; border-radius: 6px; border: 1.5px solid #0087bf; }}
     .ticker-text {{ display: inline-block; white-space: nowrap; font-size: 16px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }}
-    
     .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .trosak-dugme-plavo > div > button {{ height: 70px !important; font-size: 20px !important; color: white !important; background-color: #0087bf !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; border:none !important; }}
     .onemoguceno-dugme > div > button {{ height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }}
-    
     .label-radnik {{ font-size: 16px; color: #BBB; }}
     .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
     .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 10px; color: #0087bf; display: inline-block; }}
@@ -144,13 +133,16 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
-        # --- ADMIN OKRUŽENJE ---
         prikazi_grafik_nizak(df_l)
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
         if not df_l.empty:
-            tr = df_l.sort_values('Vreme').groupby('Radnik').last().reset_index()
-            tr_p = tr[tr['Akcija'] == 'DOLAZAK']
+            # FIX: Prvo konverzija u datetime, pa onda sortiranje i uzimanje zadnjeg stanja
+            temp_df = df_l.copy()
+            temp_df['V_DT_SORT'] = pd.to_datetime(temp_df['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
+            # Uzimamo bukvalno poslednji red za svakog radnika na osnovu vremena
+            trenutno = temp_df.sort_values('V_DT_SORT').groupby('Radnik').last().reset_index()
+            tr_p = trenutno[trenutno['Akcija'] == 'DOLAZAK']
             br_r, br_g = len(tr_p), tr_p['Gradiliste'].nunique()
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
@@ -167,7 +159,9 @@ if df_k is not None:
         
         with tabs[0]: # DANAS
             st.metric("Aktivno", br_r)
-            if br_r > 0: st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
+            if br_r > 0: 
+                # Prikazujemo samo radnike koji su STVARNO poslednje uradili DOLAZAK
+                st.dataframe(tr_p[['Radnik', 'Gradiliste', 'Vreme']], use_container_width=True)
             else: st.info("Nema prijavljenih radnika.")
             if not df_l.empty:
                 df_danas = df_l[df_l['Vreme'].str.contains(danas_dt)].copy()
@@ -269,8 +263,12 @@ if df_k is not None:
         else:
             status, posl_g = "ODLAZAK", None
             if not df_l.empty:
-                r_l = df_l[df_l['Radnik'] == p_ime]
-                if not r_l.empty: status, posl_g = r_l.iloc[-1]['Akcija'], r_l.iloc[-1]['Gradiliste']
+                temp_l = df_l[df_l['Radnik'] == p_ime].copy()
+                temp_l['V_DT_SORT'] = pd.to_datetime(temp_l['Vreme'], format="%d.%m.%Y %H:%M:%S", errors='coerce')
+                if not temp_l.empty:
+                    poslednji_zapis = temp_l.sort_values('V_DT_SORT').iloc[-1]
+                    status, posl_g = poslednji_zapis['Akcija'], poslednji_zapis['Gradiliste']
+
             st.markdown(f"<span class='label-radnik'>radnik:</span> <span class='ime-radnika'>{p_ime}</span>", unsafe_allow_html=True)
             l_g = ["-- klikni ovde i izaberi gradilište --"] + df_g['Naziv'].tolist() if not df_g.empty else ["Nema"]
             def_idx = l_g.index(posl_g) if posl_g in l_g else 0
