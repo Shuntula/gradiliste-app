@@ -10,7 +10,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # --- 1. KONFIGURACIJA STRANICE ---
 st.set_page_config(page_title="Gradilište Log", page_icon="logo.png", layout="wide")
 
-# --- 2. KOLAČIĆI (Mora biti na vrhu) ---
+# --- 2. KOLAČIĆI ---
 cookies = EncryptedCookieManager(password="neka_veoma_tajna_sifra_123")
 if not cookies.ready():
     st.stop()
@@ -20,29 +20,41 @@ MESECI_SR = {
     1: "januar", 2: "februar", 3: "mart", 4: "april", 5: "maj", 6: "jun",
     7: "jul", 8: "avgust", 9: "septembar", 10: "oktobar", 11: "novembar", 12: "decembar"
 }
+DANI_SR = {'Monday': 'Pon', 'Tuesday': 'Uto', 'Wednesday': 'Sre', 'Thursday': 'Čet', 'Friday': 'Pet', 'Saturday': 'Sub', 'Sunday': 'Ned'}
 
 # --- 4. INICIJALIZACIJA STANJA ---
 if 'uredjivanje_cene' not in st.session_state: st.session_state.uredjivanje_cene = False
 if 'unos_troska' not in st.session_state: st.session_state.unos_troska = False
 
-# --- 5. STILIZACIJA (CSS) ---
+# --- 5. STILIZACIJA (POPRAVLJEN CSS - VRAĆENA STRELICA) ---
 st.markdown(f"""
     <style>
-    .main .block-container {{ padding-top: 1rem !important; padding-bottom: 1rem !important; }}
-    header {{ visibility: hidden; }}
+    /* SMANJENJE PROSTORA NA VRHU I OSTAVLJANJE PROSTORA ZA STRELICU */
+    .main .block-container {{ 
+        padding-top: 2rem !important; 
+        padding-bottom: 1rem !important; 
+    }}
+    
+    /* SAKRIVA SAMO DESNI MENI (TRI TAČKICE) I DEPLOY DUGME */
+    [data-testid="stHeaderActionSet"] {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+    
     @keyframes pulse-green {{ 0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(40, 167, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); transform: scale(0.98); }} }}
     @keyframes pulse-red {{ 0% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); transform: scale(0.98); }} 70% {{ box-shadow: 0 0 0 20px rgba(220, 53, 69, 0); transform: scale(1); }} 100% {{ box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); transform: scale(0.98); }} }}
     @keyframes ticker {{ 0% {{ transform: translateX(100%); }} 100% {{ transform: translateX(-100%); }} }}
+    
     .vega-actions {{ display: none !important; }}
-    .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #000; padding: 8px 0; margin-bottom: 25px; border-radius: 6px; border: 1.5px solid #0087bf; }}
+    .ticker-wrap {{ width: 100%; overflow: hidden; background-color: #000; padding: 6px 0; margin-bottom: 25px; border-radius: 6px; border: 1.5px solid #0087bf; }}
     .ticker-text {{ display: inline-block; white-space: nowrap; font-size: 16px; font-weight: bold; color: #28a745; animation: ticker 30s linear infinite; }}
-    .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border: none !important; border-radius: 15px !important; width: 100% !important; }}
-    .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border: none !important; border-radius: 15px !important; width: 100% !important; }}
+    
+    .trepcuce-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #28a745 !important; animation: pulse-green 2s infinite; border-radius: 15px !important; width: 100% !important; }}
+    .odjava-dugme > div > button {{ height: 100px !important; font-size: 24px !important; font-weight: bold !important; color: white !important; background-color: #dc3545 !important; animation: pulse-red 2s infinite; border-radius: 15px !important; width: 100% !important; }}
     .trosak-dugme-plavo > div > button {{ height: 70px !important; font-size: 20px !important; color: white !important; background-color: #0087bf !important; border-radius: 15px !important; width: 100% !important; margin-top: 10px !important; border:none !important; }}
     .onemoguceno-dugme > div > button {{ height: 100px !important; background-color: #262730 !important; color: #555 !important; border: 1px solid #444 !important; border-radius: 15px !important; width: 100% !important; pointer-events: none !important; }}
+    
     .label-radnik {{ font-size: 16px; color: #BBB; }}
     .ime-radnika {{ font-size: 28px; font-weight: bold; color: #FFF; }}
-    .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 15px; color: #0087bf; display: inline-block; }}
+    .glavni-naslov {{ font-size: 28px; font-weight: bold; margin-top: 10px; color: #0087bf; display: inline-block; }}
     .admin-naslov {{ font-size: 28px; font-weight: bold; text-align: center; width: 100%; margin-bottom: 10px; padding: 10px; color: #FFF; background-color: #15468b; border-radius: 8px; }}
     .trosak-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #dc3545; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
     .trosak-mesec-box {{ font-size: 22px; font-weight: bold; color: #FFF; background-color: #0087bf; padding: 5px 15px; border-radius: 10px; display: inline-block; }}
@@ -132,6 +144,7 @@ if df_k is not None:
     st.sidebar.title("🔐 Admin")
     lozinka = st.sidebar.text_input("Lozinka:", type="password")
     if lozinka == "admin" and st.sidebar.checkbox("Prikaži Dashboard"):
+        # --- ADMIN OKRUŽENJE ---
         prikazi_grafik_nizak(df_l)
         br_r, br_g = 0, 0
         tr_p = pd.DataFrame()
@@ -142,9 +155,9 @@ if df_k is not None:
         
         danas_dt = datetime.now().strftime("%d.%m.%Y")
         r_danas_imena = df_l[(df_l['Akcija'] == 'DOLAZAK') & (df_l['Vreme'].str.contains(danas_dt))]['Radnik'].unique() if not df_l.empty else []
-        t_dnevnice = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
-        t_racuni = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
-        u_t_danas = t_dnevnice + t_racuni
+        t_d = df_k[df_k['Ime'].isin(r_danas_imena)]['Cena'].astype(float).sum() if not df_k.empty and 'Cena' in df_k.columns else 0
+        t_r = df_t[df_t['Vreme'].str.contains(danas_dt)]['Iznos'].astype(float).sum() if not df_t.empty else 0
+        u_t_danas = t_d + t_r
 
         st.markdown(f"<div class='admin-naslov'>Admin Kontrola | R{br_r} G{br_g}</div>", unsafe_allow_html=True)
         vest = f"na gradilištu: {br_r} radnika &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; • &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; trošak: {u_t_danas:,.0f} RSD"
